@@ -1,1 +1,0 @@
-tcltklib.o: tcltklib.c $(hdrdir)/ruby.h $(hdrdir)/config.h $(hdrdir)/defines.h
