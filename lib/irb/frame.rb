@@ -60,7 +60,7 @@ module IRB
     end
 
     @backtrace = Frame.new
-    set_trace_func proc{|event, file, line, id, binding, klass|
+    set_trace_func proc{|event, file, line, id, binding|
       @backtrace.trace_func(event, file, line, id, binding)
     }
   end
