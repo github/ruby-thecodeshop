@@ -1,1 +1,0 @@
-socket.o : socket.c ../../ruby.h ../../config.h ../../defines.h ../../io.h ../../sig.h 
