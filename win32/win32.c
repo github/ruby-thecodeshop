@@ -4241,6 +4241,7 @@ winnt_stat(const WCHAR *path, struct stati64 *st)
 {
     HANDLE h;
     WIN32_FIND_DATAW wfd;
+    WIN32_FILE_ATTRIBUTE_DATA wfa;
 
     memset(st, 0, sizeof(*st));
     st->st_nlink = 1;
@@ -4249,28 +4250,47 @@ winnt_stat(const WCHAR *path, struct stati64 *st)
 	errno = ENOENT;
 	return -1;
     }
-    h = FindFirstFileW(path, &wfd);
-    if (h != INVALID_HANDLE_VALUE) {
-	FindClose(h);
-	st->st_mode  = fileattr_to_unixmode(wfd.dwFileAttributes, path);
-	st->st_atime = filetime_to_unixtime(&wfd.ftLastAccessTime);
-	st->st_mtime = filetime_to_unixtime(&wfd.ftLastWriteTime);
-	st->st_ctime = filetime_to_unixtime(&wfd.ftCreationTime);
-	st->st_size = ((__int64)wfd.nFileSizeHigh << 32) | wfd.nFileSizeLow;
+    if (GetFileAttributesExW(path, GetFileExInfoStandard, (void*)&wfa)) {
+	st->st_mode  = fileattr_to_unixmode(wfa.dwFileAttributes, path);
+	st->st_atime = filetime_to_unixtime(&wfa.ftLastAccessTime);
+	st->st_mtime = filetime_to_unixtime(&wfa.ftLastWriteTime);
+	st->st_ctime = filetime_to_unixtime(&wfa.ftCreationTime);
+	st->st_size = ((__int64)wfa.nFileSizeHigh << 32) | wfa.nFileSizeLow;
+	if (wfa.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+	    st->st_size = 0;
+	    // or return -1?
+	}
     }
     else {
-	// If runtime stat(2) is called for network shares, it fails on WinNT.
-	// Because GetDriveType returns 1 for network shares. (Win98 returns 4)
-	DWORD attr = GetFileAttributesW(path);
-	if (attr == (DWORD)-1L) {
+	//GetFileAttributesEx failed; check  why.
+	int e = GetLastError();
+
+	if ((e == ERROR_FILE_NOT_FOUND) || (e == ERROR_INVALID_NAME)
+	    || (e == ERROR_PATH_NOT_FOUND)) {
+	    errno = map_errno(e);
+	    return -1;
+	}
+
+	// Fall back to FindFirstFile
+	h = FindFirstFileW(path, &wfd);
+	if (h != INVALID_HANDLE_VALUE) {
+	    FindClose(h);
+	    st->st_mode  = fileattr_to_unixmode(wfd.dwFileAttributes, path);
+	    st->st_atime = filetime_to_unixtime(&wfd.ftLastAccessTime);
+	    st->st_mtime = filetime_to_unixtime(&wfd.ftLastWriteTime);
+	    st->st_ctime = filetime_to_unixtime(&wfd.ftCreationTime);
+	    st->st_size = ((__int64)wfd.nFileSizeHigh << 32) | wfd.nFileSizeLow;
+	}
+	else {
 	    errno = map_errno(GetLastError());
 	    return -1;
 	}
-	if (attr & FILE_ATTRIBUTE_DIRECTORY) {
-	    if (check_valid_dir(path)) return -1;
-	}
-	st->st_mode  = fileattr_to_unixmode(attr, path);
     }
+
+    // Check for directory
+    //if (st_dev -> st_mode attr & FILE_ATTRIBUTE_DIRECTORY) {
+    //  if (check_valid_dir(path)) return -1;
+    //};
 
     st->st_dev = st->st_rdev = (iswalpha(path[0]) && path[1] == L':') ?
 	towupper(path[0]) - L'A' : _getdrive() - 1;
