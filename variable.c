@@ -473,7 +473,7 @@ void
 rb_gc_mark_global_tbl(void)
 {
     if (rb_global_tbl)
-        st_foreach_safe(rb_global_tbl, mark_global_entry, 0);
+        st_foreach(rb_global_tbl, mark_global_entry, 0);
 }
 
 static ID
@@ -765,7 +765,7 @@ rb_f_global_variables(void)
     char buf[2];
     int i;
 
-    st_foreach_safe(rb_global_tbl, gvar_i, ary);
+    st_foreach(rb_global_tbl, gvar_i, ary);
     buf[0] = '$';
     for (i = 1; i <= 9; ++i) {
 	buf[1] = (char)(i + '0');
@@ -923,7 +923,7 @@ static int
 givar_i(VALUE obj, st_table *tbl)
 {
     if (rb_special_const_p(obj)) {
-	st_foreach_safe(tbl, givar_mark_i, 0);
+	st_foreach(tbl, givar_mark_i, 0);
     }
     return ST_CONTINUE;
 }
@@ -933,7 +933,7 @@ rb_mark_generic_ivar_tbl(void)
 {
     if (!generic_iv_tbl) return;
     if (special_generic_ivar == 0) return;
-    st_foreach_safe(generic_iv_tbl, givar_i, 0);
+    st_foreach(generic_iv_tbl, givar_i, 0);
 }
 
 void
@@ -1170,7 +1170,7 @@ obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
     data.func = (int (*)(ID key, VALUE val, st_data_t arg))func;
     data.arg = arg;
 
-    st_foreach_safe(tbl, obj_ivar_i, (st_data_t)&data);
+    st_foreach(tbl, obj_ivar_i, (st_data_t)&data);
 }
 
 void
@@ -1730,7 +1730,7 @@ rb_mod_const_at(VALUE mod, void *data)
 	tbl = st_init_numtable();
     }
     if (RCLASS_CONST_TBL(mod)) {
-	st_foreach_safe(RCLASS_CONST_TBL(mod), sv_i, (st_data_t)tbl);
+	st_foreach(RCLASS_CONST_TBL(mod), sv_i, (st_data_t)tbl);
     }
     return tbl;
 }
@@ -1765,7 +1765,7 @@ rb_const_list(void *data)
 
     if (!tbl) return rb_ary_new2(0);
     ary = rb_ary_new2(tbl->num_entries);
-    st_foreach_safe(tbl, list_i, ary);
+    st_foreach(tbl, list_i, ary);
     st_free_table(tbl);
 
     return ary;
