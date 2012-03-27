@@ -92,6 +92,7 @@ void rb_call_end_proc(VALUE data);
 /* file.c */
 VALUE rb_home_dir(const char *user, VALUE result);
 VALUE rb_realpath_internal(VALUE basedir, VALUE path, int strict);
+VALUE rb_file_expand_path_internal(VALUE fname, VALUE dname, int abs_mode, VALUE result);
 void Init_File(void);
 
 /* gc.c */

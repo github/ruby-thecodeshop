@@ -413,7 +413,13 @@ class TestFileExhaustive < Test::Unit::TestCase
     begin
       bug3630 = '[ruby-core:31537]'
       home = ENV["HOME"]
+      home_drive = ENV["HOMEDRIVE"]
+      home_path = ENV["HOMEPATH"]
+      user_profile = ENV["USERPROFILE"]
       ENV["HOME"] = nil
+      ENV["HOMEDRIVE"] = nil
+      ENV["HOMEPATH"] = nil
+      ENV["USERPROFILE"] = nil
       assert_raise(ArgumentError) { File.expand_path("~") }
       ENV["HOME"] = "~"
       assert_raise(ArgumentError, bug3630) { File.expand_path("~") }
@@ -421,6 +427,9 @@ class TestFileExhaustive < Test::Unit::TestCase
       assert_raise(ArgumentError, bug3630) { File.expand_path("~") }
     ensure
       ENV["HOME"] = home
+      ENV["HOMEDRIVE"] = home_drive
+      ENV["HOMEPATH"] = home_path
+      ENV["USERPROFILE"] = user_profile
     end
     assert_incompatible_encoding {|d| File.expand_path(d)}
   end

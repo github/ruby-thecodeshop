@@ -327,12 +327,38 @@ module WEBrick
         end
       end
 
+      if /mswin|bccwin|mingw/ =~ RUBY_PLATFORM
+        require 'dl/import'
+        require 'dl/types'
+
+        module Kernel32
+          extend DL::Importer
+          dlload "kernel32"
+          include DL::Win32Types
+          extern "DWORD GetLongPathName(LPCSTR, LPSTR, DWORD)"
+
+          def self.long_path_name(name)
+            if (len = GetLongPathName(name, nil, 0)).nonzero?
+              buf = "\0" * len
+              buf[0...GetLongPathName(name, buf, buf.size)]
+            else
+              name
+            end
+          end
+        end
+
+        def long_path_name(name)
+          Kernel32.long_path_name(name)
+        end
+      end
+
       def shift_path_info(req, res, path_info, base=nil)
         tmp = path_info.shift
         base = base || tmp
         req.path_info = path_info.join
         req.script_name << base
         res.filename = File.expand_path(res.filename + base)
+        res.filename = long_path_name(res.filename) if defined?(long_path_name)
         check_filename(req, res, File.basename(res.filename))
       end
 

@@ -305,6 +305,7 @@ extern int rb_w32_access(const char *, int);
 extern int rb_w32_uaccess(const char *, int);
 extern char rb_w32_fd_is_text(int);
 extern int rb_w32_fstati64(int, struct stati64 *);
+extern void rb_w32_init_file();
 
 #ifdef __BORLANDC__
 extern off_t _lseeki64(int, off_t, int);
