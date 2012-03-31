@@ -114,6 +114,7 @@ VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
 VALUE rb_get_load_path(void);
 void rb_reset_expanded_cache();
 void rb_load_path_ary_push(VALUE path);
+extern VALUE rb_cExpandedPath;
 
 /* math.c */
 VALUE rb_math_atan2(VALUE, VALUE);
