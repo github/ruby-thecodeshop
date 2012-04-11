@@ -44,7 +44,7 @@ rb_any_cmp(VALUE a, VALUE b)
     if (FIXNUM_P(a) && FIXNUM_P(b)) {
 	return a != b;
     }
-    if (TYPE(a) == T_STRING && RBASIC(a)->klass == rb_cString &&
+    if (RB_TYPE_P(a, T_STRING) && RBASIC(a)->klass == rb_cString &&
 	TYPE(b) == T_STRING && RBASIC(b)->klass == rb_cString) {
 	return rb_str_hash_cmp(a, b);
     }
@@ -80,20 +80,14 @@ rb_any_hash(VALUE a)
     VALUE hval;
     st_index_t hnum;
 
-    switch (TYPE(a)) {
-      case T_FIXNUM:
-      case T_SYMBOL:
-      case T_NIL:
-      case T_FALSE:
-      case T_TRUE:
-	hnum = rb_hash_end(rb_hash_start((unsigned int)a));
-	break;
-
-      case T_STRING:
+    if (SPECIAL_CONST_P(a)) {
+	if (a == Qundef) return 0;
+	hnum = rb_hash_end(rb_hash_start((st_index_t)a));
+    }
+    else if (BUILTIN_TYPE(a) == T_STRING) {
 	hnum = rb_str_hash(a);
-	break;
-
-      default:
+    }
+    else {
         hval = rb_hash(a);
 	hnum = FIX2LONG(hval);
     }
@@ -106,10 +100,8 @@ static const struct st_hash_type objhash = {
     rb_any_hash,
 };
 
-static const struct st_hash_type identhash = {
-    st_numcmp,
-    st_numhash,
-};
+extern const struct st_hash_type st_hashtype_num;
+#define identhash st_hashtype_num
 
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
 
@@ -124,7 +116,6 @@ foreach_safe_i(st_data_t key, st_data_t value, struct foreach_safe_arg *arg)
 {
     int status;
 
-    if (key == Qundef) return ST_CONTINUE;
     status = (*arg->func)(key, value, arg->arg);
     if (status == ST_CONTINUE) {
 	return ST_CHECK;
@@ -140,7 +131,7 @@ st_foreach_safe(st_table *table, int (*func)(ANYARGS), st_data_t a)
     arg.tbl = table;
     arg.func = (st_foreach_func *)func;
     arg.arg = a;
-    if (st_foreach(table, foreach_safe_i, (st_data_t)&arg)) {
+    if (st_foreach_check(table, foreach_safe_i, (st_data_t)&arg, 0)) {
 	rb_raise(rb_eRuntimeError, "hash modified during iteration");
     }
 }
@@ -154,21 +145,21 @@ struct hash_foreach_arg {
 };
 
 static int
-hash_foreach_iter(st_data_t key, st_data_t value, struct hash_foreach_arg *arg)
+hash_foreach_iter(st_data_t key, st_data_t value, st_data_t argp)
 {
+    struct hash_foreach_arg *arg = (struct hash_foreach_arg *)argp;
     int status;
     st_table *tbl;
 
     tbl = RHASH(arg->hash)->ntbl;
-    if ((VALUE)key == Qundef) return ST_CONTINUE;
     status = (*arg->func)((VALUE)key, (VALUE)value, arg->arg);
     if (RHASH(arg->hash)->ntbl != tbl) {
 	rb_raise(rb_eRuntimeError, "rehash occurred during iteration");
     }
     switch (status) {
       case ST_DELETE:
-	st_delete_safe(tbl, &key, 0, Qundef);
 	FL_SET(arg->hash, HASH_DELETED);
+	return ST_DELETE;
       case ST_CONTINUE:
 	break;
       case ST_STOP:
@@ -184,7 +175,7 @@ hash_foreach_ensure(VALUE hash)
 
     if (RHASH(hash)->iter_lev == 0) {
 	if (FL_TEST(hash, HASH_DELETED)) {
-	    st_cleanup_safe(RHASH(hash)->ntbl, Qundef);
+	    st_cleanup_safe(RHASH(hash)->ntbl, (st_data_t)Qundef);
 	    FL_UNSET(hash, HASH_DELETED);
 	}
     }
@@ -192,9 +183,10 @@ hash_foreach_ensure(VALUE hash)
 }
 
 static VALUE
-hash_foreach_call(struct hash_foreach_arg *arg)
+hash_foreach_call(VALUE arg)
 {
-    if (st_foreach(RHASH(arg->hash)->ntbl, hash_foreach_iter, (st_data_t)arg)) {
+    VALUE hash = ((struct hash_foreach_arg *)arg)->hash;
+    if (st_foreach_check(RHASH(hash)->ntbl, hash_foreach_iter, (st_data_t)arg, (st_data_t)Qundef)) {
 	rb_raise(rb_eRuntimeError, "hash modified during iteration");
     }
     return Qnil;
@@ -447,7 +439,7 @@ rb_hash_rehash_i(VALUE key, VALUE value, VALUE arg)
 {
     st_table *tbl = (st_table *)arg;
 
-    if (key != Qundef) st_insert(tbl, key, value);
+    st_insert(tbl, (st_data_t)key, (st_data_t)value);
     return ST_CONTINUE;
 }
 
@@ -490,6 +482,20 @@ rb_hash_rehash(VALUE hash)
     return hash;
 }
 
+static VALUE
+hash_default_value(VALUE hash, VALUE key)
+{
+    if (rb_method_basic_definition_p(CLASS_OF(hash), id_default)) {
+	VALUE ifnone = RHASH_IFNONE(hash);
+	if (!FL_TEST(hash, HASH_PROC_DEFAULT)) return ifnone;
+	if (key == Qundef) return Qnil;
+	return rb_funcall(ifnone, id_yield, 2, hash, key);
+    }
+    else {
+	return rb_funcall(hash, id_default, 1, key);
+    }
+}
+
 /*
  *  call-seq:
  *     hsh[key]    ->  value
@@ -510,13 +516,7 @@ rb_hash_aref(VALUE hash, VALUE key)
     st_data_t val;
 
     if (!RHASH(hash)->ntbl || !st_lookup(RHASH(hash)->ntbl, key, &val)) {
-	if (!FL_TEST(hash, HASH_PROC_DEFAULT) &&
-	    rb_method_basic_definition_p(CLASS_OF(hash), id_default)) {
-	    return RHASH_IFNONE(hash);
-	}
-	else {
-	    return rb_funcall(hash, id_default, 1, key);
-	}
+	return hash_default_value(hash, key);
     }
     return (VALUE)val;
 }
@@ -659,7 +659,7 @@ rb_hash_default(int argc, VALUE *argv, VALUE hash)
 static VALUE
 rb_hash_set_default(VALUE hash, VALUE ifnone)
 {
-    rb_hash_modify(hash);
+    rb_hash_modify_check(hash);
     RHASH_IFNONE(hash) = ifnone;
     FL_UNSET(hash, HASH_PROC_DEFAULT);
     return ifnone;
@@ -707,7 +707,7 @@ rb_hash_set_default_proc(VALUE hash, VALUE proc)
 {
     VALUE b;
 
-    rb_hash_modify(hash);
+    rb_hash_modify_check(hash);
     b = rb_check_convert_type(proc, T_DATA, "Proc", "to_proc");
     if (NIL_P(b) || !rb_obj_is_proc(b)) {
 	rb_raise(rb_eTypeError,
@@ -776,7 +776,7 @@ rb_hash_delete_key(VALUE hash, VALUE key)
     if (!RHASH(hash)->ntbl)
         return Qundef;
     if (RHASH(hash)->iter_lev > 0) {
-	if (st_delete_safe(RHASH(hash)->ntbl, &ktmp, &val, Qundef)) {
+	if (st_delete_safe(RHASH(hash)->ntbl, &ktmp, &val, (st_data_t)Qundef)) {
 	    FL_SET(hash, HASH_DELETED);
 	    return (VALUE)val;
 	}
@@ -809,7 +809,7 @@ rb_hash_delete(VALUE hash, VALUE key)
 {
     VALUE val;
 
-    rb_hash_modify(hash);
+    rb_hash_modify_check(hash);
     val = rb_hash_delete_key(hash, key);
     if (val != Qundef) return val;
     if (rb_block_given_p()) {
@@ -828,7 +828,6 @@ shift_i(VALUE key, VALUE value, VALUE arg)
 {
     struct shift_var *var = (struct shift_var *)arg;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (var->key != Qundef) return ST_STOP;
     var->key = key;
     var->val = value;
@@ -840,7 +839,6 @@ shift_i_safe(VALUE key, VALUE value, VALUE arg)
 {
     struct shift_var *var = (struct shift_var *)arg;
 
-    if (key == Qundef) return ST_CONTINUE;
     var->key = key;
     var->val = value;
     return ST_STOP;
@@ -864,29 +862,25 @@ rb_hash_shift(VALUE hash)
 {
     struct shift_var var;
 
-    rb_hash_modify(hash);
-    var.key = Qundef;
-    rb_hash_foreach(hash, RHASH(hash)->iter_lev > 0 ? shift_i_safe : shift_i,
-		    (VALUE)&var);
+    rb_hash_modify_check(hash);
+    if (RHASH(hash)->ntbl) {
+	var.key = Qundef;
+	rb_hash_foreach(hash, RHASH(hash)->iter_lev > 0 ? shift_i_safe : shift_i,
+			(VALUE)&var);
 
-    if (var.key != Qundef) {
-	if (RHASH(hash)->iter_lev > 0) {
-	    rb_hash_delete_key(hash, var.key);
+	if (var.key != Qundef) {
+	    if (RHASH(hash)->iter_lev > 0) {
+		rb_hash_delete_key(hash, var.key);
+	    }
+	    return rb_assoc_new(var.key, var.val);
 	}
-	return rb_assoc_new(var.key, var.val);
     }
-    else if (FL_TEST(hash, HASH_PROC_DEFAULT)) {
-	return rb_funcall(RHASH_IFNONE(hash), id_yield, 2, hash, Qnil);
-    }
-    else {
-	return RHASH_IFNONE(hash);
-    }
+    return hash_default_value(hash, Qnil);
 }
 
 static int
 delete_if_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
     if (RTEST(rb_yield_values(2, key, value))) {
 	rb_hash_delete_key(hash, key);
     }
@@ -912,8 +906,9 @@ VALUE
 rb_hash_delete_if(VALUE hash)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_modify(hash);
-    rb_hash_foreach(hash, delete_if_i, hash);
+    rb_hash_modify_check(hash);
+    if (RHASH(hash)->ntbl)
+	rb_hash_foreach(hash, delete_if_i, hash);
     return hash;
 }
 
@@ -984,7 +979,6 @@ rb_hash_values_at(int argc, VALUE *argv, VALUE hash)
 static int
 select_i(VALUE key, VALUE value, VALUE result)
 {
-    if (key == Qundef) return ST_CONTINUE;
     if (RTEST(rb_yield_values(2, key, value)))
 	rb_hash_aset(result, key, value);
     return ST_CONTINUE;
@@ -1018,7 +1012,6 @@ rb_hash_select(VALUE hash)
 static int
 keep_if_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
     if (!RTEST(rb_yield_values(2, key, value))) {
 	return ST_DELETE;
     }
@@ -1040,7 +1033,7 @@ rb_hash_select_bang(VALUE hash)
     st_index_t n;
 
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_modify(hash);
+    rb_hash_modify_check(hash);
     if (!RHASH(hash)->ntbl)
         return Qnil;
     n = RHASH(hash)->ntbl->num_entries;
@@ -1065,8 +1058,9 @@ VALUE
 rb_hash_keep_if(VALUE hash)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_modify(hash);
-    rb_hash_foreach(hash, keep_if_i, hash);
+    rb_hash_modify_check(hash);
+    if (RHASH(hash)->ntbl)
+	rb_hash_foreach(hash, keep_if_i, hash);
     return hash;
 }
 
@@ -1144,9 +1138,7 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 static int
 replace_i(VALUE key, VALUE val, VALUE hash)
 {
-    if (key != Qundef) {
-	rb_hash_aset(hash, key, val);
-    }
+    rb_hash_aset(hash, key, val);
 
     return ST_CONTINUE;
 }
@@ -1227,7 +1219,6 @@ rb_hash_empty_p(VALUE hash)
 static int
 each_value_i(VALUE key, VALUE value)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_yield(value);
     return ST_CONTINUE;
 }
@@ -1262,7 +1253,6 @@ rb_hash_each_value(VALUE hash)
 static int
 each_key_i(VALUE key, VALUE value)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_yield(key);
     return ST_CONTINUE;
 }
@@ -1296,7 +1286,6 @@ rb_hash_each_key(VALUE hash)
 static int
 each_pair_i(VALUE key, VALUE value)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_yield(rb_assoc_new(key, value));
     return ST_CONTINUE;
 }
@@ -1334,7 +1323,6 @@ rb_hash_each_pair(VALUE hash)
 static int
 to_a_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_ary_push(ary, rb_assoc_new(key, value));
     return ST_CONTINUE;
 }
@@ -1367,7 +1355,6 @@ inspect_i(VALUE key, VALUE value, VALUE str)
 {
     VALUE str2;
 
-    if (key == Qundef) return ST_CONTINUE;
     str2 = rb_inspect(key);
     if (RSTRING_LEN(str) > 1) {
 	rb_str_cat2(str, ", ");
@@ -1434,7 +1421,6 @@ rb_hash_to_hash(VALUE hash)
 static int
 keys_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_ary_push(ary, key);
     return ST_CONTINUE;
 }
@@ -1465,7 +1451,6 @@ rb_hash_keys(VALUE hash)
 static int
 values_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_ary_push(ary, value);
     return ST_CONTINUE;
 }
@@ -1524,7 +1509,6 @@ rb_hash_search_value(VALUE key, VALUE value, VALUE arg)
 {
     VALUE *data = (VALUE *)arg;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (rb_equal(value, data[1])) {
 	data[0] = Qtrue;
 	return ST_STOP;
@@ -1568,7 +1552,6 @@ eql_i(VALUE key, VALUE val1, VALUE arg)
     struct equal_data *data = (struct equal_data *)arg;
     st_data_t val2;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (!st_lookup(data->tbl, key, &val2)) {
 	data->result = Qfalse;
 	return ST_STOP;
@@ -1599,7 +1582,7 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
     struct equal_data data;
 
     if (hash1 == hash2) return Qtrue;
-    if (TYPE(hash2) != T_HASH) {
+    if (!RB_TYPE_P(hash2, T_HASH)) {
 	if (!rb_respond_to(hash2, rb_intern("to_hash"))) {
 	    return Qfalse;
 	}
@@ -1670,7 +1653,6 @@ hash_i(VALUE key, VALUE val, VALUE arg)
     st_index_t *hval = (st_index_t *)arg;
     st_index_t hdata[2];
 
-    if (key == Qundef) return ST_CONTINUE;
     hdata[0] = rb_hash(key);
     hdata[1] = rb_hash(val);
     *hval ^= st_hash(hdata, sizeof(hdata), 0);
@@ -1711,7 +1693,6 @@ rb_hash_hash(VALUE hash)
 static int
 rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
     rb_hash_aset(hash, value, key);
     return ST_CONTINUE;
 }
@@ -1740,7 +1721,6 @@ rb_hash_invert(VALUE hash)
 static int
 rb_hash_update_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
     hash_update(hash, key);
     st_insert(RHASH(hash)->ntbl, key, value);
     return ST_CONTINUE;
@@ -1749,7 +1729,6 @@ rb_hash_update_i(VALUE key, VALUE value, VALUE hash)
 static int
 rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
     if (rb_hash_has_key(hash, key)) {
 	value = rb_yield_values(3, key, rb_hash_aref(hash, key), value);
     }
@@ -1806,7 +1785,6 @@ rb_hash_update_func_i(VALUE key, VALUE value, VALUE arg0)
     struct update_arg *arg = (struct update_arg *)arg0;
     VALUE hash = arg->hash;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (rb_hash_has_key(hash, key)) {
 	value = (*arg->func)(key, rb_hash_aref(hash, key), value);
     }
@@ -1863,7 +1841,6 @@ assoc_i(VALUE key, VALUE val, VALUE arg)
 {
     VALUE *args = (VALUE *)arg;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (RTEST(rb_equal(args[0], key))) {
 	args[1] = rb_assoc_new(key, val);
 	return ST_STOP;
@@ -1901,7 +1878,6 @@ rassoc_i(VALUE key, VALUE val, VALUE arg)
 {
     VALUE *args = (VALUE *)arg;
 
-    if (key == Qundef) return ST_CONTINUE;
     if (RTEST(rb_equal(args[0], val))) {
 	args[1] = rb_assoc_new(key, val);
 	return ST_STOP;
@@ -2198,7 +2174,7 @@ rb_env_path_tainted(void)
 }
 
 #if defined(_WIN32) || (defined(HAVE_SETENV) && defined(HAVE_UNSETENV))
-#elif defined __sun__
+#elif defined __sun
 static int
 in_origenv(const char *str)
 {
@@ -2286,7 +2262,7 @@ ruby_setenv(const char *name, const char *value)
 	    rb_sys_fail("unsetenv");
 #endif
     }
-#elif defined __sun__
+#elif defined __sun
     size_t len;
     char **env_ptr, *str;
     if (strchr(name, '=')) {
@@ -3084,11 +3060,9 @@ env_invert(void)
 static int
 env_replace_i(VALUE key, VALUE val, VALUE keys)
 {
-    if (key != Qundef) {
-	env_aset(Qnil, key, val);
-	if (rb_ary_includes(keys, key)) {
-	    rb_ary_delete(keys, key);
-	}
+    env_aset(Qnil, key, val);
+    if (rb_ary_includes(keys, key)) {
+	rb_ary_delete(keys, key);
     }
     return ST_CONTINUE;
 }
@@ -3120,12 +3094,10 @@ env_replace(VALUE env, VALUE hash)
 static int
 env_update_i(VALUE key, VALUE val)
 {
-    if (key != Qundef) {
-	if (rb_block_given_p()) {
-	    val = rb_yield_values(3, key, rb_f_getenv(Qnil, key), val);
-	}
-	env_aset(Qnil, key, val);
+    if (rb_block_given_p()) {
+	val = rb_yield_values(3, key, rb_f_getenv(Qnil, key), val);
     }
+    env_aset(Qnil, key, val);
     return ST_CONTINUE;
 }
 
@@ -3150,15 +3122,116 @@ env_update(VALUE env, VALUE hash)
 }
 
 /*
- *  A <code>Hash</code> is a collection of key-value pairs. It is
- *  similar to an <code>Array</code>, except that indexing is done via
- *  arbitrary keys of any object type, not an integer index. Hashes enumerate
- *  their values in the order that the corresponding keys were inserted.
+ *  A Hash is a dictionary-like collection of unique keys and their values.
+ *  Also called associative arrays, they are similar to Arrays, but where an
+ *  Array uses integers as its index, a Hash allows you to use any object
+ *  type.
+ *
+ *  Hashes enumerate their values in the order that the corresponding keys
+ *  were inserted.
+ *
+ *  A Hash can be easily created by using its implicit form:
+ *
+ *    grades = { "Jane Doe" => 10, "Jim Doe" => 6 }
+ *
+ *  Hashes allow an alternate syntax form when your keys are always symbols.
+ *  Instead of
+ *
+ *    options = { :font_size => 10, :font_family => "Arial" }
+ *
+ *  You could write it as:
+ *
+ *    options = { font_size: 10, font_family: "Arial" }
+ *
+ *  Each named key is a symbol you can access in hash:
+ *
+ *    options[:font_size]  # => 10
+ *
+ *  A Hash can also be created through its ::new method:
+ *
+ *    grades = Hash.new
+ *    grades["Dorothy Doe"] = 9
  *
  *  Hashes have a <em>default value</em> that is returned when accessing
- *  keys that do not exist in the hash. By default, that value is
- *  <code>nil</code>.
+ *  keys that do not exist in the hash. If no default is set +nil+ is used.
+ *  You can set the default value by sending it as an argument to Hash.new:
  *
+ *    grades = Hash.new(0)
+ *
+ *  Or by using the #default= method:
+ *
+ *    grades = {"Timmy Doe" => 8}
+ *    grades.default = 0
+ *
+ *  Accessing a value in a Hash requires using its key:
+ *
+ *    puts grades["Jane Doe"] # => 10
+ *
+ *  === Common Uses
+ *
+ *  Hashes are an easy way to represent data structures, such as
+ *
+ *    books         = {}
+ *    books[:matz]  = "The Ruby Language"
+ *    books[:black] = "The Well-Grounded Rubyist"
+ *
+ *  Hashes are also commonly used as a way to have named parameters in
+ *  functions. Note that no brackets are used below. If a hash is the last
+ *  argument on a method call, no braces are needed, thus creating a really
+ *  clean interface:
+ *
+ *    Person.create(name: "John Doe", age: 27)
+ *
+ *    def self.create(params)
+ *      @name = params[:name]
+ *      @age  = params[:age]
+ *    end
+ *
+ *  === Hash Keys
+ *
+ *  Two objects refer to the same hash key when their <code>hash</code> value
+ *  is identical and the two objects are <code>eql?</code> to each other.
+ *
+ *  A user-defined class may be used as a hash key if the <code>hash</code>
+ *  and <code>eql?</code> methods are overridden to provide meaningful
+ *  behavior.  By default, separate instances refer to separate hash keys.
+ *
+ *  A typical implementation of <code>hash</code> is based on the
+ *  object's data while <code>eql?</code> is usually aliased to the overridden
+ *  <code>==</code> method:
+ *
+ *    class Book
+ *      attr_reader :author, :title
+ *
+ *      def initialize(author, title)
+ *        @author = author
+ *        @title = title
+ *      end
+ *
+ *      def ==(other)
+ *        self.class === other and
+ *          other.author == @author and
+ *          other.title == @title
+ *      end
+ *
+ *      alias eql? ==
+ *
+ *      def hash
+ *        @author.hash ^ @title.hash # XOR
+ *      end
+ *    end
+ *
+ *    book1 = Book.new 'matz', 'Ruby in a Nutshell'
+ *    book2 = Book.new 'matz', 'Ruby in a Nutshell'
+ *
+ *    reviews = {}
+ *
+ *    reviews[book1] = 'Great reference!'
+ *    reviews[book2] = 'Nice and compact!'
+ *
+ *    reviews.length #=> 1
+ *
+ *  See also Object#hash and Object#eql?
  */
 
 void
