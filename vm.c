@@ -1607,15 +1607,16 @@ ruby_vm_destruct(rb_vm_t *vm)
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	struct rb_objspace *objspace = vm->objspace;
 #endif
+	if (vm->living_threads) {
+	    st_table *living_threads = vm->living_threads;
+	    vm->living_threads = 0;
+	    st_free_table(living_threads);
+	}
 	rb_gc_force_recycle(vm->self);
 	vm->main_thread = 0;
 	if (th) {
 	    rb_fiber_reset_root_local_storage(th->self);
 	    thread_free(th);
-	}
-	if (vm->living_threads) {
-	    st_free_table(vm->living_threads);
-	    vm->living_threads = 0;
 	}
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	if (objspace) {
