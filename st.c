@@ -28,7 +28,7 @@ struct st_table_entry {
 
 #define STATIC_ASSERT(name, expr) typedef int static_assert_##name##_check[(expr) ? 1 : -1];
 
-#define ST_DEFAULT_MAX_DENSITY 5
+#define ST_DEFAULT_MAX_DENSITY 2
 #define ST_DEFAULT_INIT_TABLE_SIZE 11
 #define ST_DEFAULT_SECOND_TABLE_SIZE 19
 #define ST_DEFAULT_PACKED_TABLE_SIZE 18
