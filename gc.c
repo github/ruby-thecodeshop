@@ -2385,6 +2385,8 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
         sa_clear(RCLASS_IV_TBL(obj));
         rb_free_const_table(RCLASS_CONST_TBL(obj));
         sa_clear(RCLASS_IV_INDEX_TBL(obj));
+        sa_clear(&RCLASS(obj)->cache->m_cache_tbl);
+        xfree(RCLASS(obj)->cache);
         xfree(RANY(obj)->as.klass.ptr);
 	break;
       case T_STRING:
@@ -2436,6 +2438,8 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
       case T_COMPLEX:
 	break;
       case T_ICLASS:
+        sa_clear(&RCLASS(obj)->cache->m_cache_tbl);
+        xfree(RCLASS(obj)->cache);
 	/* iClass shares table with the module */
 	break;
 
