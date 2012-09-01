@@ -30,6 +30,11 @@ struct rb_classext_struct {
     sa_table iv_index_tbl;
 };
 
+struct rb_class_cache_struct {
+    VALUE method_cache_version;
+    sa_table m_cache_tbl;
+};
+
 #undef RCLASS_SUPER
 #define RCLASS_EXT(c) (RCLASS(c)->ptr)
 #define RCLASS_SUPER(c) (RCLASS(c)->super)

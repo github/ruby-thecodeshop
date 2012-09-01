@@ -50,18 +50,24 @@ static VALUE
 class_alloc(VALUE flags, VALUE klass)
 {
     rb_classext_t *ext = ALLOC(rb_classext_t);
+    rb_class_cache_t *cache = ALLOC(rb_class_cache_t);
     NEWOBJ(obj, struct RClass);
     OBJSETUP(obj, klass, flags);
     obj->ptr = ext;
+    obj->cache = cache;
     MEMZERO(ext, struct rb_classext_struct, 1);
+    MEMZERO(cache, struct rb_class_cache_struct, 1);
     return (VALUE)obj;
 }
 
 static VALUE
 iclass_alloc()
 {
+    rb_class_cache_t *cache = ALLOC(rb_class_cache_t);
     NEWOBJ(obj, struct RClass);
     OBJSETUP(obj, rb_cClass, T_ICLASS);
+    obj->cache = cache;
+    MEMZERO(cache, struct rb_class_cache_struct, 1);
     return (VALUE)obj;
 }
 
