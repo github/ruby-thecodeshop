@@ -79,6 +79,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		safe.$(OBJEXT) \
 		signal.$(OBJEXT) \
 		sprintf.$(OBJEXT) \
+		sp_ar.$(OBJEXT) \
 		st.$(OBJEXT) \
 		strftime.$(OBJEXT) \
 		string.$(OBJEXT) \
@@ -702,6 +703,7 @@ signal.$(OBJEXT): {$(VPATH)}signal.c $(RUBY_H_INCLUDES) \
   $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h
 sprintf.$(OBJEXT): {$(VPATH)}sprintf.c $(RUBY_H_INCLUDES) {$(VPATH)}re.h \
   {$(VPATH)}regex.h {$(VPATH)}vsnprintf.c $(ENCODING_H_INCLUDES)
+sp_ar.$(OBJEXT): {$(VPATH)}sp_ar.c $(RUBY_H_INCLUDES)
 st.$(OBJEXT): {$(VPATH)}st.c $(RUBY_H_INCLUDES)
 strftime.$(OBJEXT): {$(VPATH)}strftime.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}timev.h
