@@ -327,6 +327,8 @@ typedef struct rb_vm_struct {
      * objects so do *NOT* mark this when you GC.
      */
     struct RArray at_exit;
+
+    VALUE *defined_strings;
 } rb_vm_t;
 
 typedef struct {
