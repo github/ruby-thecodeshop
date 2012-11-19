@@ -211,6 +211,7 @@ getrusage_time(void)
 	}\
 	if (objspace->basic_profile.run) {\
 	  objspace->basic_profile.total_time += getrusage_time() - objspace->basic_profile.gc_start;\
+	  objspace->basic_profile.gc_start = 0;\
 	  objspace->basic_profile.count++;\
 	}\
     } while(0)
@@ -372,6 +373,13 @@ struct pool_layout_t {
 static void pool_finalize_header(pool_header *header);
 #endif
 
+typedef struct rb_gc_basic_profile {
+  int run;
+  double gc_start;
+  double total_time;
+  size_t count;
+} rb_gc_basic_profile_t;
+
 typedef struct rb_objspace {
     struct {
 	size_t limit;
@@ -422,12 +430,7 @@ typedef struct rb_objspace {
 	size_t size;
 	double invoke_time;
     } profile;
-    struct {
-	int run;
-	double gc_start;
-	double total_time;
-	size_t count;
-    } basic_profile;
+    struct rb_gc_basic_profile basic_profile;
     struct gc_list *global_list;
     size_t count;
     int gc_stress;
@@ -745,8 +748,8 @@ static VALUE
 gc_profile_disable(void)
 {
     rb_objspace_t *objspace = &rb_objspace;
-
     objspace->profile.run = FALSE;
+
     return Qnil;
 }
 
@@ -3901,7 +3904,8 @@ gc_basic_profile_disable(void)
 {
     rb_objspace_t *objspace = &rb_objspace;
 
-    objspace->basic_profile.run = FALSE;
+    MEMZERO(&objspace->basic_profile, struct rb_gc_basic_profile, 1);
+
     return Qnil;
 }
 
