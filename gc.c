@@ -3862,7 +3862,7 @@ gc_profile_total_time(VALUE self)
 
 /*
  *  call-seq:
- *    GC::BasicProfiler.enable?                 -> true or false
+ *    GC::BasicProfiler.enabled?                 -> true or false
  *
  *  The current status of GC::BasicProfiler.
  */
