@@ -110,7 +110,6 @@ static ruby_gc_params_t initial_params = {
 #define MARK_STACK_MAX 1024
 
 int ruby_gc_debug_indent = 0;
-double ruby_gc_total_time = 0;
 
 /* for GC profile */
 #ifndef GC_PROFILE_MORE_DETAIL
@@ -202,7 +201,6 @@ getrusage_time(void)
 	if (objspace->profile.run) {\
 	    gc_time = getrusage_time() - gc_time;\
 	    if (gc_time < 0) gc_time = 0;\
-	    ruby_gc_total_time += gc_time;\
 	    objspace->profile.record[count].gc_time = gc_time;\
 	    objspace->profile.record[count].is_marked = !!(marked);\
 	    GC_PROF_SET_HEAP_INFO(objspace->profile.record[count]);\
@@ -3829,7 +3827,16 @@ gc_profile_report(int argc, VALUE *argv, VALUE self)
 static VALUE
 gc_profile_total_time(VALUE self)
 {
-    return DBL2NUM(ruby_gc_total_time);
+    double time = 0;
+    rb_objspace_t *objspace = &rb_objspace;
+    size_t i;
+
+    if (objspace->profile.run && objspace->profile.count) {
+	for (i = 0; i < objspace->profile.count; i++) {
+	    time += objspace->profile.record[i].gc_time;
+	}
+    }
+    return DBL2NUM(time);
 }
 
 /*  Document-class: GC::Profiler
