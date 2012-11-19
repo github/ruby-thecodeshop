@@ -195,6 +195,9 @@ getrusage_time(void)
 	    gc_time = getrusage_time();\
 	    objspace->profile.record[count].gc_invoke_time = gc_time - objspace->profile.invoke_time;\
 	}\
+	if (objspace->basic_profile.run) {\
+	  objspace->basic_profile.gc_start = getrusage_time();\
+	}\
     } while(0)
 
 #define GC_PROF_TIMER_STOP(marked) do {\
@@ -205,6 +208,10 @@ getrusage_time(void)
 	    objspace->profile.record[count].is_marked = !!(marked);\
 	    GC_PROF_SET_HEAP_INFO(objspace->profile.record[count]);\
 	    objspace->profile.count++;\
+	}\
+	if (objspace->basic_profile.run) {\
+	  objspace->basic_profile.total_time += getrusage_time() - objspace->basic_profile.gc_start;\
+	  objspace->basic_profile.count++;\
 	}\
     } while(0)
 
@@ -279,6 +286,9 @@ getrusage_time(void)
 #define GC_PROF_DEC_LIVE_NUM
 #endif
 
+#ifndef INT2BOOL
+#define INT2BOOL(x)  ((x)?Qtrue:Qfalse)
+#endif
 
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__)
 #pragma pack(push, 1) /* magic for reducing sizeof(RVALUE): 24 -> 20 */
@@ -412,6 +422,12 @@ typedef struct rb_objspace {
 	size_t size;
 	double invoke_time;
     } profile;
+    struct {
+	int run;
+	double gc_start;
+	double total_time;
+	size_t count;
+    } basic_profile;
     struct gc_list *global_list;
     size_t count;
     int gc_stress;
@@ -3839,6 +3855,86 @@ gc_profile_total_time(VALUE self)
     return DBL2NUM(time);
 }
 
+// GC::BasicProfiler methods
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.enable?                 -> true or false
+ *
+ *  The current status of GC::BasicProfiler.
+ */
+
+static VALUE
+gc_basic_profile_enable_get(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return INT2BOOL(objspace->basic_profile.run);
+}
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.enable          -> nil
+ *
+ *  Starts the Basic GC profiler.
+ *
+ */
+
+static VALUE
+gc_basic_profile_enable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    objspace->basic_profile.run = TRUE;
+
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.disable          -> nil
+ *
+ *  Stops the Basic GC profiler.
+ *
+ */
+
+static VALUE
+gc_basic_profile_disable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    objspace->basic_profile.run = FALSE;
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     GC::BasicProfiler.total_time -> float
+ *
+ *  The total time used for garbage collection in milliseconds
+ */
+
+static VALUE
+gc_basic_profile_total_time(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    return DBL2NUM(objspace->basic_profile.total_time);
+}
+
+/*
+ *  call-seq:
+ *     GC::BasicProfiler.count -> int
+ *
+ *  The number of times the gc has run
+ */
+
+static VALUE
+gc_basic_profile_count(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    return SIZET2NUM(objspace->basic_profile.count);
+}
+
 /*  Document-class: GC::Profiler
  *
  *  The GC profiler provides access to information on GC runs including time,
@@ -3871,6 +3967,7 @@ Init_GC(void)
 {
     VALUE rb_mObSpace;
     VALUE rb_mProfiler;
+    VALUE rb_mBasicProfiler;
 
     rb_mGC = rb_define_module("GC");
     rb_define_singleton_method(rb_mGC, "start", rb_gc_start, 0);
@@ -3891,6 +3988,13 @@ Init_GC(void)
     rb_define_singleton_method(rb_mProfiler, "result", gc_profile_result, 0);
     rb_define_singleton_method(rb_mProfiler, "report", gc_profile_report, -1);
     rb_define_singleton_method(rb_mProfiler, "total_time", gc_profile_total_time, 0);
+
+    rb_mBasicProfiler = rb_define_module_under(rb_mGC, "BasicProfiler");
+    rb_define_singleton_method(rb_mBasicProfiler, "enabled?", gc_basic_profile_enable_get, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "enable", gc_basic_profile_enable, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "disable", gc_basic_profile_disable, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "total_time", gc_basic_profile_total_time, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "count", gc_basic_profile_count, 0);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
