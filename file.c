@@ -149,38 +149,58 @@ file_path_convert(VALUE name)
     return name;
 }
 
-static VALUE
-rb_get_path_check(VALUE obj, int level)
+static rb_encoding *
+check_path_encoding(VALUE str)
+{
+    rb_encoding *enc = rb_enc_get(str);
+    if (!rb_enc_asciicompat(enc)) {
+	rb_raise(rb_eEncCompatError, "path name must be ASCII-compatible (%s): %s",
+		 rb_enc_name(enc), RSTRING_PTR(rb_str_inspect(str)));
+    }
+    return enc;
+}
+
+VALUE
+rb_get_path_check_to_string(VALUE obj, int level)
 {
     VALUE tmp;
     ID to_path;
-    rb_encoding *enc;
 
     if (insecure_obj_p(obj, level)) {
 	rb_insecure_operation();
     }
 
+    if (RB_TYPE_P(obj, T_STRING)) {
+	return obj;
+    }
     CONST_ID(to_path, "to_path");
     tmp = rb_check_funcall(obj, to_path, 0, 0);
     if (tmp == Qundef) {
 	tmp = obj;
     }
     StringValue(tmp);
+    return tmp;
+}
 
+VALUE
+rb_get_path_check_convert(VALUE obj, VALUE tmp, int level)
+{
     tmp = file_path_convert(tmp);
     if (obj != tmp && insecure_obj_p(tmp, level)) {
 	rb_insecure_operation();
     }
-    enc = rb_enc_get(tmp);
-    if (!rb_enc_asciicompat(enc)) {
-	tmp = rb_str_inspect(tmp);
-	rb_raise(rb_eEncCompatError, "path name must be ASCII-compatible (%s): %s",
-		 rb_enc_name(enc), RSTRING_PTR(tmp));
-    }
 
+    check_path_encoding(tmp);
     StringValueCStr(tmp);
 
     return rb_str_new4(tmp);
+}
+
+static VALUE
+rb_get_path_check(VALUE obj, int level)
+{
+    VALUE tmp = rb_get_path_check_to_string(obj, level);
+    return rb_get_path_check_convert(obj, tmp, level);
 }
 
 VALUE
@@ -3250,7 +3270,6 @@ rb_file_expand_path(VALUE fname, VALUE dname)
 VALUE
 rb_file_expand_path_fast(VALUE fname, VALUE dname)
 {
-    check_expand_path_args(fname, dname);
     return rb_file_expand_path_internal(fname, dname, 0, 0, EXPAND_PATH_BUFFER());
 }
 
@@ -5241,7 +5260,7 @@ rb_find_file_ext_safe(VALUE *filep, const char *const *ext, int safe_level)
 	rb_raise(rb_eSecurityError, "loading from non-absolute path %s", f);
     }
 
-    RB_GC_GUARD(load_path) = rb_get_load_path();
+    RB_GC_GUARD(load_path) = rb_get_expanded_load_path();
     if (!load_path) return 0;
 
     fname = rb_str_dup(*filep);
@@ -5306,7 +5325,7 @@ rb_find_file_safe(VALUE path, int safe_level)
 	rb_raise(rb_eSecurityError, "loading from non-absolute path %s", f);
     }
 
-    RB_GC_GUARD(load_path) = rb_get_load_path();
+    RB_GC_GUARD(load_path) = rb_get_expanded_load_path();
     if (load_path) {
 	long i;
 

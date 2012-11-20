@@ -94,6 +94,8 @@ VALUE rb_home_dir(const char *user, VALUE result);
 VALUE rb_realpath_internal(VALUE basedir, VALUE path, int strict);
 VALUE rb_file_expand_path_fast(VALUE, VALUE);
 VALUE rb_file_expand_path_internal(VALUE, VALUE, int, int, VALUE);
+VALUE rb_get_path_check_to_string(VALUE, int);
+VALUE rb_get_path_check_convert(VALUE, VALUE, int);
 void Init_File(void);
 
 #ifdef _WIN32
@@ -119,6 +121,7 @@ VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
 
 /* load.c */
 VALUE rb_get_load_path(void);
+VALUE rb_get_expanded_load_path(void);
 
 /* math.c */
 VALUE rb_math_atan2(VALUE, VALUE);
