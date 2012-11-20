@@ -1,5 +1,5 @@
 #define RUBY_VERSION "1.9.3"
-#define RUBY_PATCHLEVEL 231
+#define RUBY_PATCHLEVEL 194
 
 #define RUBY_RELEASE_DATE "2012-05-25"
 #define RUBY_RELEASE_YEAR 2012
@@ -40,7 +40,7 @@
 #endif
 
 # define RUBY_DESCRIPTION	    \
-    "tcs-ruby "RUBY_VERSION		    \
+    "tcs/jamesgolick-ruby "RUBY_VERSION		    \
     RUBY_PATCHLEVEL_STR             \
     " ("RUBY_RELEASE_DATE	    \
     RUBY_REVISION_STR") "	    \
