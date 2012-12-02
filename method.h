@@ -100,6 +100,6 @@ int rb_method_entry_eq(const rb_method_entry_t *m1, const rb_method_entry_t *m2)
 void rb_mark_method_entry(const rb_method_entry_t *me);
 void rb_free_method_entry(rb_method_entry_t *me);
 void rb_sweep_method_entry(void *vm);
-void rb_free_m_table(st_table *tbl);
+void rb_free_m_table(sa_table *tbl);
 
 #endif /* METHOD_H */

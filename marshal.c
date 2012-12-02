@@ -506,7 +506,7 @@ w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
 }
 
 static int
-w_obj_each(ID id, VALUE value, struct dump_call_arg *arg)
+w_obj_each(sa_index_t id, VALUE value, struct dump_call_arg *arg)
 {
     if (id == rb_id_encoding()) return ST_CONTINUE;
     if (id == rb_intern("E")) return ST_CONTINUE;
@@ -553,13 +553,13 @@ w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 }
 
 static void
-w_ivar(VALUE obj, st_table *tbl, struct dump_call_arg *arg)
+w_ivar(VALUE obj, sa_table *tbl, struct dump_call_arg *arg)
 {
     long num = tbl ? tbl->num_entries : 0;
 
     w_encoding(obj, num, arg);
     if (tbl) {
-	st_foreach_safe(tbl, w_obj_each, (st_data_t)arg);
+	sa_foreach(tbl, w_obj_each, (st_data_t)arg);
     }
 }
 
@@ -586,7 +586,7 @@ static void
 w_object(VALUE obj, struct dump_arg *arg, int limit)
 {
     struct dump_call_arg c_arg;
-    st_table *ivtbl = 0;
+    sa_table *ivtbl = 0;
     st_data_t num;
     int hasiv = 0;
 #define has_ivars(obj, ivtbl) (((ivtbl) = rb_generic_ivar_table(obj)) != 0 || \
@@ -651,7 +651,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	}
 	if (rb_respond_to(obj, s_dump)) {
 	    VALUE v;
-            st_table *ivtbl2 = 0;
+            sa_table *ivtbl2 = 0;
             int hasiv2;
 
 	    v = rb_funcall(obj, s_dump, 1, INT2NUM(limit));

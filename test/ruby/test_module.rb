@@ -870,7 +870,7 @@ class TestModule < Test::Unit::TestCase
       (class << self ; self ; end).class_eval do
         define_method :method_added do |sym|
           memo << sym
-          memo << mod.instance_methods(false)
+          memo << mod.instance_methods(false).sort
           memo << (mod.instance_method(sym) rescue nil)
         end
       end
@@ -887,10 +887,10 @@ class TestModule < Test::Unit::TestCase
     assert_equal [:f, :g], memo.shift
     assert_equal mod.instance_method(:f), memo.shift
     assert_equal :a, memo.shift
-    assert_equal [:f, :g, :a], memo.shift
+    assert_equal [:a, :f, :g], memo.shift
     assert_equal mod.instance_method(:a), memo.shift
     assert_equal :a=, memo.shift
-    assert_equal [:f, :g, :a, :a=], memo.shift
+    assert_equal [:a, :a=, :f, :g], memo.shift
     assert_equal mod.instance_method(:a=), memo.shift
   end
 

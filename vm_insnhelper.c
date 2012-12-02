@@ -1183,7 +1183,7 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 		st_data_t data;
 	      search_continue:
 		if (RCLASS_CONST_TBL(klass) &&
-		    st_lookup(RCLASS_CONST_TBL(klass), id, &data)) {
+		    sa_lookup(RCLASS_CONST_TBL(klass), (sa_index_t)id, &data)) {
 		    val = ((rb_const_entry_t*)data)->value;
 		    if (val == Qundef) {
 			if (am == klass) break;
@@ -1293,10 +1293,10 @@ vm_getivar(VALUE obj, ID id, IC ic)
 	    st_data_t index;
 	    long len = ROBJECT_NUMIV(obj);
 	    VALUE *ptr = ROBJECT_IVPTR(obj);
-	    struct st_table *iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
+	    struct sa_table *iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
 
 	    if (iv_index_tbl) {
-		if (st_lookup(iv_index_tbl, id, &index)) {
+		if (sa_lookup(iv_index_tbl, (sa_index_t)id, &index)) {
 		    if ((long)index < len) {
 			val = ptr[index];
 		    }
@@ -1346,9 +1346,9 @@ vm_setivar(VALUE obj, ID id, VALUE val, IC ic)
 	    }
 	}
 	else {
-	    struct st_table *iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
+	    struct sa_table *iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
 
-	    if (iv_index_tbl && st_lookup(iv_index_tbl, (st_data_t)id, &index)) {
+	    if (iv_index_tbl && sa_lookup(iv_index_tbl, (sa_index_t)id, &index)) {
 		ic->ic_class = klass;
 		ic->ic_value.index = index;
 		ic->ic_vmstat = GET_VM_STATE_VERSION();
