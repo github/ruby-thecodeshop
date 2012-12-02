@@ -60,20 +60,10 @@ memsize_of(VALUE obj)
 	break;
       case T_MODULE:
       case T_CLASS:
-	size += st_memsize(RCLASS_M_TBL(obj));
-	if (RCLASS_IV_TBL(obj)) {
-	    size += st_memsize(RCLASS_IV_TBL(obj));
-	}
-	if (RCLASS_IV_INDEX_TBL(obj)) {
-	    size += st_memsize(RCLASS_IV_INDEX_TBL(obj));
-	}
-	if (RCLASS(obj)->ptr->iv_tbl) {
-	    size += st_memsize(RCLASS(obj)->ptr->iv_tbl);
-	}
-	if (RCLASS(obj)->ptr->const_tbl) {
-	    size += st_memsize(RCLASS(obj)->ptr->const_tbl);
-	}
-	size += sizeof(rb_classext_t);
+	size += sa_memsize(RCLASS_M_TBL(obj));
+        size += sa_memsize(RCLASS_IV_TBL(obj));
+        size += sa_memsize(RCLASS_IV_INDEX_TBL(obj));
+        size += sa_memsize(RCLASS_CONST_TBL(obj));
 	break;
       case T_STRING:
 	size += rb_str_memsize(obj);

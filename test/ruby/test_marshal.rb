@@ -312,7 +312,7 @@ class TestMarshal < Test::Unit::TestCase
         assert_equal(a.instance_variable_get(i), b.instance_variable_get(i), bug1932)
       end
     end
-    a.__send__(a.methods(true).grep(/=\z/)[0], a)
+    a.__send__(a.methods(true).grep(/r.*=\z/)[0], a)
     assert_nothing_raised(bug1932) do
       b = Marshal.load(Marshal.dump(a))
       assert_equal(ClassISO8859_1, b.class, bug1932)

@@ -605,7 +605,7 @@ struct RObject {
 	struct {
 	    long numiv;
 	    VALUE *ivptr;
-            struct st_table *iv_index_tbl; /* shortcut for RCLASS_IV_INDEX_TBL(rb_obj_class(obj)) */
+            struct sa_table *iv_index_tbl; /* shortcut for RCLASS_IV_INDEX_TBL(rb_obj_class(obj)) */
 	} heap;
 	VALUE ary[ROBJECT_EMBED_LEN_MAX];
     } as;
@@ -629,9 +629,8 @@ typedef struct rb_classext_struct rb_classext_t;
 
 struct RClass {
     struct RBasic basic;
+    VALUE super;
     rb_classext_t *ptr;
-    struct st_table *m_tbl;
-    struct st_table *iv_index_tbl;
 };
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
 #define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
