@@ -1947,7 +1947,11 @@ rb_enc_cr_str_buf_cat(VALUE str, const char *ptr, long len,
     if (ptr_cr_ret)
         *ptr_cr_ret = ptr_cr;
 
-    if (str_encindex != ptr_encindex &&
+    if ((str_encindex == rb_utf8_encindex() && ptr_encindex == rb_ascii8bit_encindex()) ||
+        (str_encindex == rb_ascii8bit_encindex() && ptr_encindex == rb_utf8_encindex())) {
+        /* fall through to conditional below */
+    }
+    else if (str_encindex != ptr_encindex &&
         str_cr != ENC_CODERANGE_7BIT &&
         ptr_cr != ENC_CODERANGE_7BIT) {
       incompatible:
@@ -1956,7 +1960,13 @@ rb_enc_cr_str_buf_cat(VALUE str, const char *ptr, long len,
             rb_enc_name(rb_enc_from_index(ptr_encindex)));
     }
 
-    if (str_cr == ENC_CODERANGE_UNKNOWN) {
+    if (str_encindex != ptr_encindex &&
+        str_cr != ENC_CODERANGE_7BIT &&
+        ptr_cr != ENC_CODERANGE_7BIT) {
+        res_encindex = rb_ascii8bit_encindex();
+        res_cr = ENC_CODERANGE_VALID;
+    }
+    else if (str_cr == ENC_CODERANGE_UNKNOWN) {
         res_encindex = str_encindex;
         res_cr = ENC_CODERANGE_UNKNOWN;
     }
@@ -2226,6 +2236,10 @@ rb_str_comparable(VALUE str1, VALUE str2)
     if (rc2 == ENC_CODERANGE_7BIT) {
 	if (rb_enc_asciicompat(rb_enc_from_index(idx1)))
 	    return TRUE;
+    }
+    if ((idx1 == rb_utf8_encindex() && idx2 == rb_ascii8bit_encindex()) ||
+        (idx1 == rb_ascii8bit_encindex() && idx2 == rb_utf8_encindex())) {
+        return TRUE;
     }
     return FALSE;
 }

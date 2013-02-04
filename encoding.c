@@ -806,6 +806,12 @@ rb_enc_compatible(VALUE str1, VALUE str2)
 	    if (cr2 == ENC_CODERANGE_7BIT) {
 		return enc1;
 	    }
+	    if (idx1 == ENCINDEX_UTF_8 && idx2 == ENCINDEX_ASCII) {
+		return enc2;
+	    }
+	    else if (idx1 == ENCINDEX_ASCII && idx2 == ENCINDEX_UTF_8) {
+		return enc1;
+	    }
 	}
 	if (cr1 == ENC_CODERANGE_7BIT)
 	    return enc2;
