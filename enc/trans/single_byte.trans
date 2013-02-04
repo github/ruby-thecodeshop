@@ -6,7 +6,7 @@
   transcode_tblgen "US-ASCII", "UTF-8", us_ascii_map
   transcode_tblgen "UTF-8", "US-ASCII", us_ascii_map
   transcode_tblgen "ASCII-8BIT", "UTF-8", us_ascii_map
-  transcode_tblgen "UTF-8", "ASCII-8BIT", us_ascii_map
+  transcode_tblgen "UTF-8", "ASCII-8BIT", [["{00-ff}", :nomap]], '{00-ff}'
 
   CONTROL1_TO_UCS_TBL = (0x80..0x9f).map {|c| ["%02X" % c, c] }
 
