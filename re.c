@@ -1253,12 +1253,19 @@ rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
         if (RREGEXP(re)->ptr->enc != enc &&
 	    (!rb_enc_asciicompat(RREGEXP(re)->ptr->enc) ||
 	     rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT)) {
+            if ((RREGEXP(re)->ptr->enc == rb_ascii8bit_encoding() &&
+                enc == rb_utf8_encoding()) ||
+                (enc == rb_ascii8bit_encoding() &&
+                 RREGEXP(re)->ptr->enc == rb_utf8_encoding())) {
+                return rb_ascii8bit_encoding();
+            }
 	    reg_enc_error(re, str);
 	}
 	enc = RREGEXP(re)->ptr->enc;
     }
     if (warn && (RBASIC(re)->flags & REG_ENCODING_NONE) &&
 	enc != rb_ascii8bit_encoding() &&
+	enc != rb_utf8_encoding() &&
 	rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
 	rb_warn("regexp match /.../n against to %s string",
 		rb_enc_name(enc));
