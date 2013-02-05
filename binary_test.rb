@@ -16,7 +16,7 @@ class BinaryUTF8CompatTest < Test::Unit::TestCase
   end
 
   def test_encode_binary_to_utf8
-    assert_raises Encoding::UndefinedConversionError do
+    assert_nothing_raised do
       @binary_mb.encode('utf-8')
     end
   end
