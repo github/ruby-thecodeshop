@@ -5887,7 +5887,7 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	char *sptr = RSTRING_PTR(spat);
 	long slen = RSTRING_LEN(spat);
 
-	if (is_broken_string(str)) {
+	if (is_broken_string(str) && STR_ENC_GET(str) != rb_utf8_encoding()) {
 	    rb_raise(rb_eArgError, "invalid byte sequence in %s", rb_enc_name(STR_ENC_GET(str)));
 	}
 	if (is_broken_string(spat)) {
