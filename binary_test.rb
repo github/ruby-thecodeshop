@@ -21,6 +21,15 @@ class BinaryUTF8CompatTest < Test::Unit::TestCase
     end
   end
 
+  def test_invalid_byte_seq
+    email = "\xD0\xEE\xEC\xE0\xF8\xEA\xE0@MyAcerPC.(none)".force_encoding('UTF-8')
+    assert_nothing_raised do
+      email.strip
+      email.split("\0")
+      email.split(/\s+/)
+    end
+  end
+
   def test_equal_contents
     assert_equal @binary_mb, @utf8_mb
   end

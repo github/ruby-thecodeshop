@@ -907,6 +907,11 @@ rb_enc_codepoint_len(const char *p, const char *e, int *len_p, rb_encoding *enc)
 	if (len_p) *len_p = MBCLEN_CHARFOUND_LEN(r);
         return rb_enc_mbc_to_codepoint(p, e, enc);
     }
+    else if (enc == rb_utf8_encoding() && MBCLEN_CHARFOUND_P(r = rb_enc_precise_mbclen(p, e, rb_ascii8bit_encoding()))) {
+	// swallow invalid byte sequence in utf-8 strings; treat as ascii-8bit instead
+	if (len_p) *len_p = MBCLEN_CHARFOUND_LEN(r);
+        return rb_enc_mbc_to_codepoint(p, e, rb_ascii8bit_encoding());
+    }
     else
 	rb_raise(rb_eArgError, "invalid byte sequence in %s", rb_enc_name(enc));
 }

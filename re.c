@@ -1235,15 +1235,15 @@ static rb_encoding*
 rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
 {
     rb_encoding *enc = 0;
+    enc = rb_enc_get(str);
 
-    if (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN) {
+    if (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN && enc != rb_utf8_encoding()) {
         rb_raise(rb_eArgError,
             "invalid byte sequence in %s",
             rb_enc_name(rb_enc_get(str)));
     }
 
     rb_reg_check(re);
-    enc = rb_enc_get(str);
     if (!rb_enc_str_asciicompat_p(str)) {
         if (RREGEXP(re)->ptr->enc != enc) {
 	    reg_enc_error(re, str);
