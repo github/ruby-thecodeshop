@@ -42,6 +42,7 @@
 # define RUBY_DESCRIPTION	    \
     "ruby "RUBY_VERSION		    \
     RUBY_PATCHLEVEL_STR             \
+    "-github1"                \
     " ("RUBY_RELEASE_DATE	    \
     RUBY_REVISION_STR") "	    \
     "["RUBY_PLATFORM"]"
