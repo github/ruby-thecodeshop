@@ -275,8 +275,8 @@ getrusage_time(void)
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM
-#define GC_PROF_DEC_LIVE_NUM
+#define GC_PROF_INC_LIVE_NUM objspace->heap.live_num++
+#define GC_PROF_DEC_LIVE_NUM objspace->heap.live_num--
 #endif
 
 
@@ -3038,6 +3038,16 @@ VALUE os_freelist_size(VALUE self)
 }
 
 /* call-seq:
+ *  ObjectSpace.live_objects => number
+ */
+static
+VALUE os_live_objects(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return SIZET2NUM(objspace->heap.live_num);
+}
+
+/* call-seq:
  *  ObjectSpace.allocated_objects => number
  *
  * Returns the count of objects allocated since the Ruby interpreter has
@@ -3933,6 +3943,7 @@ Init_GC(void)
     rb_define_module_function(rb_mObSpace, "garbage_collect", rb_gc_start, 0);
     rb_define_module_function(rb_mObSpace, "freelist_size", os_freelist_size, 0);
     rb_define_module_function(rb_mObSpace, "allocated_objects", os_allocated_objects, 0);
+    rb_define_module_function(rb_mObSpace, "live_objects", os_live_objects, 0);
 
     rb_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
     rb_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
