@@ -77,6 +77,7 @@ extern "C" {
         ENC_CODERANGE_SET(rb_encoding_coderange_obj, (cr)); \
     } while (0)
 
+extern int rb_encoding_compat;
 typedef OnigEncodingType rb_encoding;
 
 int rb_char_to_option_kcode(int c, int *option, int *kcode);
