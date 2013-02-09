@@ -1604,6 +1604,12 @@ rb_enc_aliases(VALUE klass)
     return aliases[0];
 }
 
+static VALUE
+rb_enc_compat_mode_enabled_p(VALUE klass)
+{
+    return rb_encoding_compat ? Qtrue : Qfalse;
+}
+
 void
 Init_Encoding(void)
 {
@@ -1645,6 +1651,9 @@ Init_Encoding(void)
     for (i = 0; i < enc_table.count; ++i) {
 	rb_ary_push(list, enc_new(enc_table.list[i].enc));
     }
+
+    rb_const_set(rb_cEncoding, rb_intern_const("COMPAT_MODE_AVAILABLE"), Qtrue);
+    rb_define_singleton_method(rb_cEncoding, "compat_mode_enabled?", rb_enc_compat_mode_enabled_p, 0);
 }
 
 /* locale insensitive ctype functions */
