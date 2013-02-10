@@ -1358,6 +1358,7 @@ rb_during_gc(void)
 
 #define RANY(o) ((RVALUE*)(o))
 #define has_free_object (objspace->heap.free_slots && objspace->heap.free_slots->freelist)
+#define num_free_objects (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)
 
 VALUE
 rb_newobj(void)
@@ -2274,7 +2275,7 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
     }
     gc_clear_slot_bits(sweep_slot);
     if (final_num + free_num == sweep_slot->membase->limit &&
-        objspace->heap.free_num > objspace->heap.do_heap_free) {
+        num_free_objects > objspace->heap.do_heap_free) {
         RVALUE *pp;
 
         for (pp = deferred_final_list; pp != final; pp = pp->as.free.next) {
@@ -2345,7 +2346,7 @@ after_gc_sweep(rb_objspace_t *objspace)
 {
     GC_PROF_SET_MALLOC_INFO;
 
-    if (objspace->heap.free_num < objspace->heap.free_min) {
+    if (num_free_objects < objspace->heap.free_min) {
         set_heaps_increment(objspace);
         heaps_increment(objspace);
     }
@@ -2424,7 +2425,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)) {
+    if (objspace->heap.free_min > num_free_objects) {
 	set_heaps_increment(objspace);
     }
 
@@ -3041,7 +3042,7 @@ static
 VALUE os_free_slots(VALUE self)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    return SIZET2NUM(heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num);
+    return SIZET2NUM(num_free_objects);
 }
 
 /* call-seq:
