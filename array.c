@@ -295,6 +295,33 @@ rb_ary_frozen_p(VALUE ary)
     return Qfalse;
 }
 
+/* This can be used to take a snapshot of an array (with
+   e.g. rb_ary_replace) and check later whether the array has been
+   modified from the snapshot.  The snapshot is cheap, though if
+   something does modify the array it will pay the cost of copying
+   it. */
+VALUE
+rb_ary_dup_of_p(VALUE ary1, VALUE ary2)
+{
+    VALUE *p1, *p2;
+    long len = RARRAY_LEN(ary1);
+
+    if (len != RARRAY_LEN(ary2)) return Qfalse;
+
+    p1 = RARRAY_PTR(ary1);
+    p2 = RARRAY_PTR(ary2);
+
+    if (ARY_EMBED_P(ary1) && ARY_EMBED_P(ary2)) {
+        for (; len; len--, p1++, p2++) {
+            if (*p1 != *p2) return Qfalse;
+        }
+        return Qtrue;
+    }
+
+    if (p1 == p2) return Qtrue;
+    return Qfalse;
+}
+
 static VALUE
 ary_alloc(VALUE klass)
 {
