@@ -499,6 +499,8 @@ install?(:local, :arch, :lib) do
   end
   noinst = nil if noinst.empty?
   install_recursive(File.join(srcdir, "include"), rubyhdrdir, :no_install => noinst, :glob => "*.h", :mode => $data_mode)
+  install_recursive(srcdir, rubyhdrdir, :no_install => noinst, :glob => "*.h", :mode => $data_mode)
+  install_recursive(srcdir, rubyhdrdir, :no_install => noinst, :glob => "*.inc", :mode => $data_mode)
 end
 
 install?(:local, :comm, :man) do
