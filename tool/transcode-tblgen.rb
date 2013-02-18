@@ -68,7 +68,7 @@ class ArrayCode
 
   def to_s
     <<"End"
-static const #{@type}
+static #{@type}
 #{@name}[#{@len}] = {
 #{@content}};
 End
