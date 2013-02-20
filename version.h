@@ -33,15 +33,16 @@
 # ifdef RUBY_BRANCH_NAME
 #  define RUBY_REVISION_STR " "RUBY_BRANCH_NAME" "STRINGIZE(RUBY_REVISION)
 # else
-#  define RUBY_REVISION_STR " revision "STRINGIZE(RUBY_REVISION)
+#  define RUBY_REVISION_STR " revision "STRINGIZE(RUBY_REVISION)", GitHub v1.0.10"
 # endif
 #else
-# define RUBY_REVISION_STR ""
+# define RUBY_REVISION_STR ", GitHub v1.0.10"
 #endif
 
 # define RUBY_DESCRIPTION	    \
     "ruby "RUBY_VERSION		    \
     RUBY_PATCHLEVEL_STR             \
+    "-tcs-github"             \
     " ("RUBY_RELEASE_DATE	    \
     RUBY_REVISION_STR") "	    \
     "["RUBY_PLATFORM"]"
