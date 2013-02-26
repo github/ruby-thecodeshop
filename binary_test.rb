@@ -34,6 +34,12 @@ class BinaryUTF8CompatTest < Test::Unit::TestCase
     assert_equal @binary_mb, @utf8_mb
   end
 
+  def test_hash_lookups
+    hash = {}
+    hash[@binary_mb] = 1
+    assert_equal 1, hash[@utf8_mb]
+  end
+
   def test_match_binary_regexp
     assert_nothing_raised do
       assert_equal 0, Regexp.new(@binary_mb) =~ @utf8_mb

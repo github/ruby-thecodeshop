@@ -2176,6 +2176,8 @@ rb_str_hash(VALUE str)
     if (e && rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	e = 0;
     }
+    if (rb_encoding_compat && e == rb_utf8_encindex() || e == rb_ascii8bit_encindex())
+      e = 0;
     return rb_memhash((const void *)RSTRING_PTR(str), RSTRING_LEN(str)) ^ e;
 }
 
