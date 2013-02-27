@@ -3069,6 +3069,13 @@ VALUE os_allocated_objects(VALUE self)
     return SIZET2NUM(allocated_objects);
 }
 
+size_t
+rb_os_allocated_objects(void)
+{
+  rb_objspace_t *objspace = &rb_objspace;
+  return allocated_objects;
+}
+
 /*
  *  call-seq:
  *     ObjectSpace.undefine_finalizer(obj)
