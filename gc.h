@@ -86,6 +86,7 @@ int ruby_get_stack_grow_direction(volatile VALUE *addr);
 #pragma GCC visibility push(default)
 #endif
 
+size_t rb_os_allocated_objects(void);
 size_t rb_objspace_data_type_memsize(VALUE obj);
 void rb_objspace_each_objects(
     int (*callback)(void *start, void *end, size_t stride, void *data),
