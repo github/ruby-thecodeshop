@@ -87,11 +87,13 @@ void *alloca ();
 #endif
 #define HEAP_MIN_SLOTS 10000
 #define FREE_MIN  4096
+#define HEAP_GROWTH_FACTOR 1.8
 
 typedef struct {
     unsigned int initial_malloc_limit;
     unsigned int initial_heap_min_slots;
     unsigned int initial_free_min;
+    double initial_growth_factor;
     int gc_stress;
 } ruby_gc_params_t;
 
@@ -99,6 +101,7 @@ ruby_gc_params_t initial_params = {
     GC_MALLOC_LIMIT,
     HEAP_MIN_SLOTS,
     FREE_MIN,
+    HEAP_GROWTH_FACTOR,
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     FALSE,
 #endif
@@ -144,7 +147,13 @@ typedef struct gc_profile_record {
 static double
 getrusage_time(void)
 {
-#ifdef RUSAGE_SELF
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_PROCESS_CPUTIME_ID)
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+        return ts.tv_sec + ts.tv_nsec * 1e-9;
+    }
+#elif defined RUSAGE_SELF
     struct rusage usage;
     struct timeval time;
     getrusage(RUSAGE_SELF, &usage);
@@ -247,7 +256,7 @@ getrusage_time(void)
 	}\
     } while(0)
 #define GC_PROF_SET_HEAP_INFO(record) do {\
-        live = objspace->heap.live_num;\
+        live = objspace_live_num(objspace);\
         total = heaps_used * HEAP_OBJ_LIMIT;\
         (record).heap_use_slots = heaps_used;\
         (record).heap_live_objects = live;\
@@ -257,8 +266,6 @@ getrusage_time(void)
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM objspace->heap.live_num++
-#define GC_PROF_DEC_LIVE_NUM objspace->heap.live_num--
 #else
 #define INIT_GC_PROF_PARAMS double gc_time = 0;\
     size_t count = objspace->profile.count, total = 0, live = 0
@@ -268,14 +275,12 @@ getrusage_time(void)
 #define GC_PROF_SWEEP_TIMER_STOP
 #define GC_PROF_SET_MALLOC_INFO
 #define GC_PROF_SET_HEAP_INFO(record) do {\
-        live = objspace->heap.live_num;\
+        live = objspace_live_num(objspace);\
         total = heaps_used * HEAP_OBJ_LIMIT;\
         (record).heap_total_objects = total;\
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM
-#define GC_PROF_DEC_LIVE_NUM
 #endif
 
 
@@ -394,7 +399,6 @@ typedef struct rb_objspace {
 	RVALUE *freelist;
 	RVALUE *range[2];
 	RVALUE *freed;
-	size_t live_num;
 	size_t free_num;
 	size_t free_min;
 	size_t final_num;
@@ -419,6 +423,8 @@ typedef struct rb_objspace {
     } profile;
     struct gc_list *global_list;
     size_t count;
+    size_t total_allocated_object_num;
+    size_t total_freed_object_num;
     int gc_stress;
 } rb_objspace_t;
 
@@ -453,6 +459,7 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define initial_malloc_limit	initial_params.initial_malloc_limit
 #define initial_heap_min_slots	initial_params.initial_heap_min_slots
 #define initial_free_min	initial_params.initial_free_min
+#define initial_growth_factor	initial_params.initial_growth_factor
 
 static void rb_objspace_call_finalizer(rb_objspace_t *objspace);
 
@@ -479,7 +486,7 @@ static void init_mark_stack(mark_stack_t *stack);
 void
 rb_gc_set_params(void)
 {
-    char *malloc_limit_ptr, *heap_min_slots_ptr, *free_min_ptr;
+    char *malloc_limit_ptr, *heap_min_slots_ptr, *free_min_ptr, *growth_factor_ptr;
 
     if (rb_safe_level() > 0) return;
 
@@ -503,6 +510,17 @@ rb_gc_set_params(void)
 	if (heap_min_slots_i > 0) {
 	    initial_heap_min_slots = heap_min_slots_i;
             initial_expand_heap(&rb_objspace);
+	}
+    }
+
+    growth_factor_ptr = getenv("RUBY_HEAP_SLOTS_GROWTH_FACTOR");
+    if (growth_factor_ptr != NULL) {
+	double growth_factor_f = strtod(growth_factor_ptr, NULL);
+	if (RTEST(ruby_verbose))
+	    fprintf(stderr, "heap_slots_growth_factor=%f (%f)\n",
+		    growth_factor_f, initial_growth_factor);
+	if (growth_factor_f > 1) {
+	    initial_growth_factor = growth_factor_f;
 	}
     }
 
@@ -1263,7 +1281,7 @@ initial_expand_heap(rb_objspace_t *objspace)
 static void
 set_heaps_increment(rb_objspace_t *objspace)
 {
-    size_t next_heaps_length = (size_t)(heaps_used * 1.8);
+    size_t next_heaps_length = (size_t)(heaps_used * initial_growth_factor);
 
     if (next_heaps_length == heaps_used) {
         next_heaps_length++;
@@ -1330,7 +1348,7 @@ rb_newobj(void)
     RANY(obj)->file = rb_sourcefile();
     RANY(obj)->line = rb_sourceline();
 #endif
-    GC_PROF_INC_LIVE_NUM;
+    objspace->total_allocated_object_num++;
 
     return obj;
 }
@@ -1852,7 +1870,6 @@ gc_mark(rb_objspace_t *objspace, VALUE ptr)
     if (obj->as.basic.flags == 0) return;       /* free cell */
     if (obj->as.basic.flags & FL_MARK) return;  /* already marked */
     obj->as.basic.flags |= FL_MARK;
-    objspace->heap.live_num++;
 
     push_mark_stack(&objspace->mark_stack, ptr);
 }
@@ -1876,7 +1893,6 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr)
     if (obj->as.basic.flags == 0) return;       /* free cell */
     if (obj->as.basic.flags & FL_MARK) return;  /* already marked */
     obj->as.basic.flags |= FL_MARK;
-    objspace->heap.live_num++;
 
   marking:
     if (FL_TEST(obj, FL_EXIVAR)) {
@@ -2157,8 +2173,9 @@ finalize_list(rb_objspace_t *objspace, RVALUE *p)
                 p->as.free.flags = 0;
             }
             else {
-                GC_PROF_DEC_LIVE_NUM;
                 add_freelist(objspace, p);
+		objspace->total_freed_object_num++;
+		objspace->heap.free_num++;
             }
 	}
 	else {
@@ -2220,10 +2237,16 @@ free_unused_heaps(rb_objspace_t *objspace)
     }
 }
 
+static size_t
+objspace_live_num(rb_objspace_t *objspace)
+{
+    return objspace->total_allocated_object_num - objspace->total_freed_object_num;
+}
+
 static void
 slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
 {
-    size_t free_num = 0, final_num = 0;
+    size_t empty_num = 0, freed_num = 0, final_num = 0;
     RVALUE *p, *pend;
     RVALUE *free = freelist, *final = deferred_final_list;
     int deferred;
@@ -2244,8 +2267,11 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
                 final_num++;
             }
             else {
+                if (p->as.basic.flags)
+                  freed_num++;
+                else
+                  empty_num++;
                 add_freelist(objspace, p);
-                free_num++;
             }
         }
         else if (BUILTIN_TYPE(p) == T_ZOMBIE) {
@@ -2257,7 +2283,7 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
         }
         p++;
     }
-    if (final_num + free_num == sweep_slot->limit &&
+    if (final_num + freed_num + empty_num == sweep_slot->limit &&
         objspace->heap.free_num > objspace->heap.do_heap_free) {
         RVALUE *pp;
 
@@ -2270,7 +2296,8 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
         unlink_heap_slot(objspace, sweep_slot);
     }
     else {
-        objspace->heap.free_num += free_num;
+	objspace->total_freed_object_num += freed_num;
+	objspace->heap.free_num += freed_num + empty_num;
     }
     objspace->heap.final_num += final_num;
 
@@ -2327,7 +2354,7 @@ after_gc_sweep(rb_objspace_t *objspace)
     }
 
     if (malloc_increase > malloc_limit) {
-	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace->heap.live_num / (heaps_used * HEAP_OBJ_LIMIT));
+	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace_live_num(objspace) / (heaps_used * HEAP_OBJ_LIMIT));
 	if (malloc_limit < initial_malloc_limit) malloc_limit = initial_malloc_limit;
     }
     malloc_increase = 0;
@@ -2402,7 +2429,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)) {
+    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace_live_num(objspace))) {
 	set_heaps_increment(objspace);
     }
 
@@ -2442,12 +2469,13 @@ void
 rb_gc_force_recycle(VALUE p)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    GC_PROF_DEC_LIVE_NUM;
     if (RBASIC(p)->flags & FL_MARK) {
         RANY(p)->as.free.flags = 0;
     }
     else {
         add_freelist(objspace, (RVALUE *)p);
+	objspace->total_freed_object_num++;
+	objspace->heap.free_num++;
     }
 }
 
@@ -2636,7 +2664,6 @@ gc_marks(rb_objspace_t *objspace)
     rb_thread_t *th = GET_THREAD();
     GC_PROF_MARK_TIMER_START;
 
-    objspace->heap.live_num = 0;
     objspace->count++;
 
 
@@ -3496,6 +3523,50 @@ count_objects(int argc, VALUE *argv, VALUE os)
 }
 
 /*
+ *  ObjectSpace.free_slots => number
+ *
+ * Returns the count of free slots available for new objects.
+ */
+static
+VALUE os_free_slots(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    size_t total = heaps_used * HEAP_OBJ_LIMIT, live = objspace_live_num(objspace);
+    return SIZET2NUM(live>total ? 0 : total-live);
+}
+
+/* call-seq:
+ *  ObjectSpace.live_objects => number
+ */
+static
+VALUE os_live_objects(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return SIZET2NUM(objspace_live_num(objspace));
+}
+
+/* call-seq:
+ *  ObjectSpace.allocated_objects => number
+ *
+ * Returns the count of objects allocated since the Ruby interpreter has
+ * started.  This number can only increase. To know how many objects are
+ * currently allocated, use ObjectSpace::live_objects
+ */
+static
+VALUE os_allocated_objects(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return SIZET2NUM(objspace->total_allocated_object_num);
+}
+
+size_t
+rb_os_allocated_objects(void)
+{
+  rb_objspace_t *objspace = &rb_objspace;
+  return objspace->total_allocated_object_num;
+}
+
+/*
  *  call-seq:
  *     GC.count -> Integer
  *
@@ -3559,7 +3630,7 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_used")), SIZET2NUM(objspace->heap.used));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_length")), SIZET2NUM(objspace->heap.length));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_increment")), SIZET2NUM(objspace->heap.increment));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace->heap.live_num));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace_live_num(objspace)));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(objspace->heap.free_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     return hash;
@@ -3799,6 +3870,9 @@ Init_GC(void)
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
     rb_define_module_function(rb_mObSpace, "garbage_collect", rb_gc_start, 0);
+    rb_define_module_function(rb_mObSpace, "allocated_objects", os_allocated_objects, 0);
+    rb_define_module_function(rb_mObSpace, "live_objects", os_live_objects, 0);
+    rb_define_module_function(rb_mObSpace, "free_slots", os_free_slots, 0);
 
     rb_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
     rb_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
