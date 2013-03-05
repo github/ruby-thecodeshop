@@ -3523,6 +3523,50 @@ count_objects(int argc, VALUE *argv, VALUE os)
 }
 
 /*
+ *  ObjectSpace.free_slots => number
+ *
+ * Returns the count of free slots available for new objects.
+ */
+static
+VALUE os_free_slots(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    size_t total = heaps_used * HEAP_OBJ_LIMIT, live = objspace_live_num(objspace);
+    return SIZET2NUM(live>total ? 0 : total-live);
+}
+
+/* call-seq:
+ *  ObjectSpace.live_objects => number
+ */
+static
+VALUE os_live_objects(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return SIZET2NUM(objspace_live_num(objspace));
+}
+
+/* call-seq:
+ *  ObjectSpace.allocated_objects => number
+ *
+ * Returns the count of objects allocated since the Ruby interpreter has
+ * started.  This number can only increase. To know how many objects are
+ * currently allocated, use ObjectSpace::live_objects
+ */
+static
+VALUE os_allocated_objects(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return SIZET2NUM(objspace->total_allocated_object_num);
+}
+
+size_t
+rb_os_allocated_objects(void)
+{
+  rb_objspace_t *objspace = &rb_objspace;
+  return objspace->total_allocated_object_num;
+}
+
+/*
  *  call-seq:
  *     GC.count -> Integer
  *
@@ -3826,6 +3870,9 @@ Init_GC(void)
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
     rb_define_module_function(rb_mObSpace, "garbage_collect", rb_gc_start, 0);
+    rb_define_module_function(rb_mObSpace, "allocated_objects", os_allocated_objects, 0);
+    rb_define_module_function(rb_mObSpace, "live_objects", os_live_objects, 0);
+    rb_define_module_function(rb_mObSpace, "free_slots", os_free_slots, 0);
 
     rb_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
     rb_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
