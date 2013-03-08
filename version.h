@@ -33,10 +33,10 @@
 # ifdef RUBY_BRANCH_NAME
 #  define RUBY_REVISION_STR " "RUBY_BRANCH_NAME" "STRINGIZE(RUBY_REVISION)
 # else
-#  define RUBY_REVISION_STR ", TCS patched 2012-05-27, GitHub v1.0.10"
+#  define RUBY_REVISION_STR ", TCS patched 2012-05-27, GitHub v1.0.11"
 # endif
 #else
-# define RUBY_REVISION_STR ", TCS patched 2012-05-27, GitHub v1.0.10"
+# define RUBY_REVISION_STR ", TCS patched 2012-05-27, GitHub v1.0.11"
 #endif
 
 # define RUBY_DESCRIPTION	    \
