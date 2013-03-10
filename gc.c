@@ -278,8 +278,8 @@ getrusage_time(void)
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM objspace->heap.live_num++
-#define GC_PROF_DEC_LIVE_NUM objspace->heap.live_num--
+#define GC_PROF_INC_LIVE_NUM
+#define GC_PROF_DEC_LIVE_NUM
 #endif
 
 
@@ -385,7 +385,6 @@ typedef struct rb_objspace {
 	struct heaps_header **sorted;
 	size_t length;
 	size_t used;
-	size_t allocated_objects;
         struct heaps_slot *reserve_slots;
 	RVALUE *range[2];
 	size_t live_num;
@@ -418,6 +417,8 @@ typedef struct rb_objspace {
     } profile;
     struct gc_list *global_list;
     size_t count;
+    size_t total_allocated_object_num;
+    size_t total_freed_object_num;
     int gc_stress;
 } rb_objspace_t;
 
@@ -438,7 +439,6 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define heaps			objspace->heap.ptr
 #define heaps_length		objspace->heap.length
 #define heaps_used		objspace->heap.used
-#define allocated_objects	objspace->heap.allocated_objects
 #define lomem			objspace->heap.range[0]
 #define himem			objspace->heap.range[1]
 #define heaps_inc		objspace->heap.increment
@@ -1259,7 +1259,7 @@ assign_heap_slot(rb_objspace_t *objspace)
     membase->limit = objs;
     heaps->membase = membase;
     memset(heaps->bits, 0, HEAP_BITMAP_LIMIT * sizeof(uintptr_t));
-    objspace->heap.free_num += objs;
+    /* objspace->heap.free_num += objs;*/
     pend = p + objs;
     if (lomem == 0 || lomem > p) lomem = p;
     if (himem < pend) himem = pend;
@@ -1358,7 +1358,6 @@ rb_during_gc(void)
 
 #define RANY(o) ((RVALUE*)(o))
 #define has_free_object (objspace->heap.free_slots && objspace->heap.free_slots->freelist)
-#define num_free_objects (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)
 
 VALUE
 rb_newobj(void)
@@ -1397,7 +1396,7 @@ rb_newobj(void)
     RANY(obj)->file = rb_sourcefile();
     RANY(obj)->line = rb_sourceline();
 #endif
-    allocated_objects++;
+    objspace->total_allocated_object_num++;
     GC_PROF_INC_LIVE_NUM;
 
     return obj;
@@ -2170,6 +2169,8 @@ finalize_list(rb_objspace_t *objspace, RVALUE *p)
 	RVALUE *tmp = p->as.free.next;
 	run_final(objspace, (VALUE)p);
 	if (!FL_TEST(p, FL_SINGLETON)) { /* not freeing page */
+            objspace->total_freed_object_num++;
+            objspace->heap.free_num++;
             add_slot_local_freelist(objspace, p);
             if (!is_lazy_sweeping(objspace)) {
                 GC_PROF_DEC_LIVE_NUM;
@@ -2237,7 +2238,7 @@ gc_clear_slot_bits(struct heaps_slot *slot)
 static void
 slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
 {
-    size_t free_num = 0, final_num = 0;
+    size_t freed_num = 0, empty_num = 0, final_num = 0;
     RVALUE *p, *pend;
     RVALUE *final = deferred_final_list;
     int deferred;
@@ -2264,18 +2265,18 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
                     p->as.free.flags = 0;
                     p->as.free.next = sweep_slot->freelist;
                     sweep_slot->freelist = p;
-                    free_num++;
+                    freed_num++;
                 }
             }
             else {
-                free_num++;
+                empty_num++;
             }
         }
         p++;
     }
     gc_clear_slot_bits(sweep_slot);
-    if (final_num + free_num == sweep_slot->membase->limit &&
-        num_free_objects > objspace->heap.do_heap_free) {
+    if (final_num + freed_num + empty_num == sweep_slot->membase->limit &&
+        objspace->heap.free_num > objspace->heap.do_heap_free) {
         RVALUE *pp;
 
         for (pp = deferred_final_list; pp != final; pp = pp->as.free.next) {
@@ -2289,13 +2290,14 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
         }
     }
     else {
-        if (free_num > 0) {
+        if (freed_num + empty_num > 0) {
             link_free_heap_slot(objspace, sweep_slot);
         }
         else {
             sweep_slot->free_next = NULL;
         }
-        objspace->heap.free_num += free_num;
+        objspace->total_freed_object_num += freed_num;
+        objspace->heap.free_num += freed_num + empty_num;
     }
     objspace->heap.final_num += final_num;
 
@@ -2425,7 +2427,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > num_free_objects) {
+    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)) {
 	set_heaps_increment(objspace);
     }
 
@@ -2467,10 +2469,12 @@ rb_gc_force_recycle(VALUE p)
     rb_objspace_t *objspace = &rb_objspace;
     struct heaps_slot *slot;
 
+    objspace->total_freed_object_num++;
     if (MARKED_IN_BITMAP(GET_HEAP_BITMAP(p), p)) {
         add_slot_local_freelist(objspace, (RVALUE *)p);
     }
     else {
+        objspace->heap.free_num++;
         GC_PROF_DEC_LIVE_NUM;
         slot = add_slot_local_freelist(objspace, (RVALUE *)p);
         if (slot->free_next == NULL) {
@@ -3033,16 +3037,10 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
     return os_obj_of(of);
 }
 
-/*
- *  ObjectSpace.free_slots => number
- *
- * Returns the count of free slots available for new objects.
- */
-static
-VALUE os_free_slots(VALUE self)
+static size_t
+objspace_live_num(rb_objspace_t *objspace)
 {
-    rb_objspace_t *objspace = &rb_objspace;
-    return SIZET2NUM(num_free_objects);
+    return objspace->total_allocated_object_num - objspace->total_freed_object_num;
 }
 
 /* call-seq:
@@ -3052,7 +3050,20 @@ static
 VALUE os_live_objects(VALUE self)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    return SIZET2NUM(objspace->heap.live_num);
+    return SIZET2NUM(objspace_live_num(objspace));
+}
+
+/*
+ *  ObjectSpace.free_slots => number
+ *
+ * Returns the count of free slots available for new objects.
+ */
+static
+VALUE os_free_slots(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    size_t total = heaps_used * HEAP_OBJ_LIMIT, live = objspace_live_num(objspace);
+    return SIZET2NUM(live>total ? 0 : total-live);
 }
 
 /* call-seq:
@@ -3066,14 +3077,14 @@ static
 VALUE os_allocated_objects(VALUE self)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    return SIZET2NUM(allocated_objects);
+    return SIZET2NUM(objspace->total_allocated_object_num);
 }
 
 size_t
 rb_os_allocated_objects(void)
 {
   rb_objspace_t *objspace = &rb_objspace;
-  return allocated_objects;
+  return objspace->total_allocated_object_num;
 }
 
 /*
