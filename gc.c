@@ -2346,7 +2346,7 @@ after_gc_sweep(rb_objspace_t *objspace)
 {
     GC_PROF_SET_MALLOC_INFO;
 
-    if (num_free_objects < objspace->heap.free_min) {
+    if (objspace->heap.free_num < objspace->heap.free_min) {
         set_heaps_increment(objspace);
         heaps_increment(objspace);
     }
