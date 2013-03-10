@@ -339,7 +339,7 @@ loaded_feature_path_i(st_data_t v, st_data_t b, st_data_t f)
 static int
 rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const char **fn)
 {
-    VALUE features, features_index, feature_val, this_feature_index, v, p, load_path = 0;
+    VALUE v, features, p, load_path = 0;
     const char *f, *e;
     long i, len, elen, n;
     st_table *loading_tbl;
@@ -358,39 +358,8 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
 	type = 0;
     }
     features = get_loaded_features();
-    features_index = get_loaded_features_index();
-
-    feature_val = rb_str_new(feature, len);
-    this_feature_index = rb_hash_lookup(features_index, feature_val);
-    /* We search `features` for an entry such that either
-         "#{features[i]}" == "#{load_path[j]}/#{feature}#{e}"
-       for some j, or
-         "#{features[i]}" == "#{feature}#{e}"
-       Here `e` is an "allowed" extension -- either empty or one
-       of the extensions accepted by IS_RBEXT, IS_SOEXT, or
-       IS_DLEXT.  Further, if `ext && rb` then `IS_RBEXT(e)`,
-       and if `ext && !rb` then `IS_SOEXT(e) || IS_DLEXT(e)`.
-
-       If `expanded`, then only the latter form (without load_path[j])
-       is accepted.  Otherwise either form is accepted, *unless* `ext`
-       is false and an otherwise-matching entry of the first form is
-       preceded by an entry of the form
-         "#{features[i2]}" == "#{load_path[j2]}/#{feature}#{e2}"
-       where `e2` matches %r{^\.[^./]*$} but is not an allowed extension.
-       After a "distractor" entry of this form, only entries of the
-       form "#{feature}#{e}" are accepted.
-
-       In `rb_provide_feature()` and `get_loaded_features_index()` we
-       maintain an invariant that the array `this_feature_index` will
-       point to every entry in `features` which has the form
-         "#{prefix}#{feature}#{e}"
-       where `e` is empty or matches %r{^\.[^./]*$}, and `prefix` is empty
-       or ends in '/'.  This includes both match forms above, as well
-       as any distractors, so we may ignore all other entries in `features`.
-     */
-    for (i = 0; this_feature_index != Qnil && i < RARRAY_LEN(this_feature_index); i++) {
-	long index = FIX2LONG(rb_ary_entry(this_feature_index, i));
-	v = RARRAY_PTR(features)[index];
+    for (i = 0; i < RARRAY_LEN(features); ++i) {
+	v = RARRAY_PTR(features)[i];
 	f = StringValuePtr(v);
 	if ((n = RSTRING_LEN(v)) < len) continue;
 	if (strncmp(f, feature, len) != 0) {
@@ -493,18 +462,11 @@ rb_feature_provided(const char *feature, const char **loading)
 static void
 rb_provide_feature(VALUE feature)
 {
-    VALUE features;
-
-    features = get_loaded_features();
-    if (OBJ_FROZEN(features)) {
+    if (OBJ_FROZEN(get_loaded_features())) {
 	rb_raise(rb_eRuntimeError,
 		 "$LOADED_FEATURES is frozen; cannot append feature");
     }
-    rb_str_freeze(feature);
-
-    rb_ary_push(features, feature);
-    features_index_add(feature, INT2FIX(RARRAY_LEN(features)-1));
-    reset_loaded_features_snapshot();
+    rb_ary_push(get_loaded_features(), feature);
 }
 
 void
@@ -1027,8 +989,6 @@ Init_load()
     rb_define_virtual_variable("$\"", get_loaded_features, 0);
     rb_define_virtual_variable("$LOADED_FEATURES", get_loaded_features, 0);
     vm->loaded_features = rb_ary_new();
-    vm->loaded_features_snapshot = rb_ary_new();
-    vm->loaded_features_index = rb_hash_new();
 
     rb_define_global_function("load", rb_f_load, -1);
     rb_define_global_function("require", rb_f_require, 1);
