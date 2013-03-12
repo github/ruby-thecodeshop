@@ -409,6 +409,7 @@ typedef struct rb_objspace {
 	size_t used;
         struct heaps_slot *reserve_slots;
 	RVALUE *range[2];
+	size_t marked_num;
 	size_t free_num;
 	size_t free_min;
 	size_t final_num;
@@ -1934,6 +1935,7 @@ gc_mark_ptr(rb_objspace_t *objspace, VALUE ptr)
     register uintptr_t *bits = GET_HEAP_BITMAP(ptr);
     if (MARKED_IN_BITMAP(bits, ptr)) return 0;
     MARK_IN_BITMAP(bits, ptr);
+    objspace->heap.marked_num++;
     return 1;
 }
 
@@ -1971,6 +1973,7 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr)
     bits = GET_HEAP_BITMAP(ptr);
     if (MARKED_IN_BITMAP(bits, ptr)) return;  /* already marked */
     MARK_IN_BITMAP(bits, ptr);
+    objspace->heap.marked_num++;
 
   marking:
     if (FL_TEST(obj, FL_EXIVAR)) {
@@ -2444,7 +2447,7 @@ after_gc_sweep(rb_objspace_t *objspace)
     }
 
     if (malloc_increase > malloc_limit) {
-	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace_live_num(objspace) / (heaps_used * HEAP_OBJ_LIMIT));
+	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace->heap.marked_num / (heaps_used * HEAP_OBJ_LIMIT));
 	if (malloc_limit < initial_malloc_limit) malloc_limit = initial_malloc_limit;
     }
     malloc_increase = 0;
@@ -2517,7 +2520,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace_live_num(objspace))) {
+    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.marked_num)) {
 	set_heaps_increment(objspace);
     }
 
@@ -2757,6 +2760,7 @@ gc_marks(rb_objspace_t *objspace)
     rb_thread_t *th = GET_THREAD();
     GC_PROF_MARK_TIMER_START;
 
+    objspace->heap.marked_num = 0;
     objspace->count++;
 
 
