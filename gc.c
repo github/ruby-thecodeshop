@@ -251,7 +251,7 @@ getrusage_time(void)
 	}\
     } while(0)
 #define GC_PROF_SET_HEAP_INFO(record) do {\
-        live = objspace->heap.live_num;\
+        live = objspace_live_num(objspace);\
         total = heaps_used * HEAP_OBJ_LIMIT;\
         (record).heap_use_slots = heaps_used;\
         (record).heap_live_objects = live;\
@@ -261,8 +261,6 @@ getrusage_time(void)
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM objspace->heap.live_num++
-#define GC_PROF_DEC_LIVE_NUM objspace->heap.live_num--
 #else
 #define INIT_GC_PROF_PARAMS double gc_time = 0;\
     size_t count = objspace->profile.count, total = 0, live = 0
@@ -272,14 +270,12 @@ getrusage_time(void)
 #define GC_PROF_SWEEP_TIMER_STOP
 #define GC_PROF_SET_MALLOC_INFO
 #define GC_PROF_SET_HEAP_INFO(record) do {\
-        live = objspace->heap.live_num;\
+        live = objspace_live_num(objspace);\
         total = heaps_used * HEAP_OBJ_LIMIT;\
         (record).heap_total_objects = total;\
         (record).heap_use_size = live * sizeof(RVALUE);\
         (record).heap_total_size = total * sizeof(RVALUE);\
     } while(0)
-#define GC_PROF_INC_LIVE_NUM
-#define GC_PROF_DEC_LIVE_NUM
 #endif
 
 
@@ -387,7 +383,7 @@ typedef struct rb_objspace {
 	size_t used;
         struct heaps_slot *reserve_slots;
 	RVALUE *range[2];
-	size_t live_num;
+	size_t marked_num;
 	size_t free_num;
 	size_t free_min;
 	size_t final_num;
@@ -1397,7 +1393,6 @@ rb_newobj(void)
     RANY(obj)->line = rb_sourceline();
 #endif
     objspace->total_allocated_object_num++;
-    GC_PROF_INC_LIVE_NUM;
 
     return obj;
 }
@@ -1834,7 +1829,7 @@ gc_mark_ptr(rb_objspace_t *objspace, VALUE ptr)
     register uintptr_t *bits = GET_HEAP_BITMAP(ptr);
     if (MARKED_IN_BITMAP(bits, ptr)) return 0;
     MARK_IN_BITMAP(bits, ptr);
-    objspace->heap.live_num++;
+    objspace->heap.marked_num++;
     return 1;
 }
 
@@ -1884,7 +1879,7 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
     bits = GET_HEAP_BITMAP(ptr);
     if (MARKED_IN_BITMAP(bits, ptr)) return;  /* already marked */
     MARK_IN_BITMAP(bits, ptr);
-    objspace->heap.live_num++;
+    objspace->heap.marked_num++;
 
   marking:
     if (FL_TEST(obj, FL_EXIVAR)) {
@@ -2172,9 +2167,6 @@ finalize_list(rb_objspace_t *objspace, RVALUE *p)
             objspace->total_freed_object_num++;
             objspace->heap.free_num++;
             add_slot_local_freelist(objspace, p);
-            if (!is_lazy_sweeping(objspace)) {
-                GC_PROF_DEC_LIVE_NUM;
-            }
 	}
 	else {
             struct heaps_header *heap = GET_HEAP_HEADER(p);
@@ -2324,6 +2316,12 @@ ready_to_gc(rb_objspace_t *objspace)
     return TRUE;
 }
 
+static inline size_t
+objspace_live_num(rb_objspace_t *objspace)
+{
+    return objspace->total_allocated_object_num - objspace->total_freed_object_num;
+}
+
 static void
 before_gc_sweep(rb_objspace_t *objspace)
 {
@@ -2354,7 +2352,7 @@ after_gc_sweep(rb_objspace_t *objspace)
     }
 
     if (malloc_increase > malloc_limit) {
-	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace->heap.live_num / (heaps_used * HEAP_OBJ_LIMIT));
+	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace->heap.marked_num / (heaps_used * HEAP_OBJ_LIMIT));
 	if (malloc_limit < initial_malloc_limit) malloc_limit = initial_malloc_limit;
     }
     malloc_increase = 0;
@@ -2427,7 +2425,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.live_num)) {
+    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.marked_num)) {
 	set_heaps_increment(objspace);
     }
 
@@ -2475,7 +2473,6 @@ rb_gc_force_recycle(VALUE p)
     }
     else {
         objspace->heap.free_num++;
-        GC_PROF_DEC_LIVE_NUM;
         slot = add_slot_local_freelist(objspace, (RVALUE *)p);
         if (slot->free_next == NULL) {
             link_free_heap_slot(objspace, slot);
@@ -2675,7 +2672,7 @@ gc_marks(rb_objspace_t *objspace)
     rb_thread_t *th = GET_THREAD();
     GC_PROF_MARK_TIMER_START;
 
-    objspace->heap.live_num = 0;
+    objspace->heap.marked_num = 0;
     objspace->count++;
 
 
@@ -3035,12 +3032,6 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
     }
     RETURN_ENUMERATOR(os, 1, &of);
     return os_obj_of(of);
-}
-
-static size_t
-objspace_live_num(rb_objspace_t *objspace)
-{
-    return objspace->total_allocated_object_num - objspace->total_freed_object_num;
 }
 
 /* call-seq:
@@ -3699,7 +3690,7 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_used")), SIZET2NUM(objspace->heap.used));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_length")), SIZET2NUM(objspace->heap.length));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_increment")), SIZET2NUM(objspace->heap.increment));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace->heap.live_num));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace_live_num(objspace)));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(objspace->heap.free_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     return hash;
