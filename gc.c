@@ -375,6 +375,7 @@ typedef struct rb_objspace {
 #endif
     struct {
 	size_t increment;
+	size_t decrement;
 	struct heaps_slot *ptr;
 	struct heaps_slot *sweep_slots;
 	struct heaps_slot *free_slots;
@@ -385,9 +386,9 @@ typedef struct rb_objspace {
 	RVALUE *range[2];
 	size_t marked_num;
 	size_t free_num;
-	size_t free_min;
 	size_t final_num;
-	size_t do_heap_free;
+	size_t free_min;
+	size_t free_max;
     } heap;
     struct {
 	int dont_gc;
@@ -438,6 +439,7 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define lomem			objspace->heap.range[0]
 #define himem			objspace->heap.range[1]
 #define heaps_inc		objspace->heap.increment
+#define heaps_dec		objspace->heap.decrement
 #define dont_gc 		objspace->flags.dont_gc
 #define during_gc		objspace->flags.during_gc
 #define finalizing		objspace->flags.finalizing
@@ -2268,8 +2270,9 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
     }
     gc_clear_slot_bits(sweep_slot);
     if (final_num + freed_num + empty_num == sweep_slot->membase->limit &&
-        objspace->heap.free_num > objspace->heap.do_heap_free) {
+        heaps_dec > 0) {
         RVALUE *pp;
+        heaps_dec--;
 
         for (pp = deferred_final_list; pp != final; pp = pp->as.free.next) {
 	    RDATA(pp)->dmark = 0;
@@ -2325,13 +2328,29 @@ objspace_live_num(rb_objspace_t *objspace)
 static void
 before_gc_sweep(rb_objspace_t *objspace)
 {
-    objspace->heap.do_heap_free = (size_t)((heaps_used * HEAP_OBJ_LIMIT) * 0.65);
-    objspace->heap.free_min = (size_t)((heaps_used * HEAP_OBJ_LIMIT)  * 0.2);
-    if (objspace->heap.free_min < initial_free_min) {
+    size_t total_slots, marked_slots, unmarked_slots;
+
+    total_slots = heaps_used * HEAP_OBJ_LIMIT;
+    marked_slots = objspace->heap.marked_num;
+    unmarked_slots = total_slots - marked_slots;
+
+    objspace->heap.free_min = (size_t)(total_slots * 0.2);
+    objspace->heap.free_max = (size_t)(total_slots * 0.5);
+
+    if (objspace->heap.free_min < initial_free_min)
         objspace->heap.free_min = initial_free_min;
-        if (objspace->heap.do_heap_free < initial_free_min)
-            objspace->heap.do_heap_free = initial_free_min;
+    if (objspace->heap.free_max < initial_free_min)
+        objspace->heap.free_max = initial_free_min;
+
+    if (unmarked_slots < objspace->heap.free_min) {
+        heaps_dec = 0;
+        set_heaps_increment(objspace);
+        heaps_increment(objspace);
+    } else if (unmarked_slots > objspace->heap.free_max) {
+        heaps_inc = 0;
+        heaps_dec = (size_t)((unmarked_slots - objspace->heap.free_max) / HEAP_OBJ_LIMIT);
     }
+
     objspace->heap.sweep_slots = heaps;
     objspace->heap.free_num = 0;
     objspace->heap.free_slots = NULL;
@@ -2346,11 +2365,6 @@ static void
 after_gc_sweep(rb_objspace_t *objspace)
 {
     GC_PROF_SET_MALLOC_INFO;
-
-    if (objspace->heap.free_num < objspace->heap.free_min) {
-        set_heaps_increment(objspace);
-        heaps_increment(objspace);
-    }
 
     if (malloc_increase > malloc_limit) {
 	malloc_limit += (size_t)((malloc_increase - malloc_limit) * (double)objspace->heap.marked_num / (heaps_used * HEAP_OBJ_LIMIT));
@@ -2426,9 +2440,6 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     gc_marks(objspace);
 
     before_gc_sweep(objspace);
-    if (objspace->heap.free_min > (heaps_used * HEAP_OBJ_LIMIT - objspace->heap.marked_num)) {
-	set_heaps_increment(objspace);
-    }
 
     GC_PROF_SWEEP_TIMER_START;
     if (!(res = lazy_sweep(objspace))) {
