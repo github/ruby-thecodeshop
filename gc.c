@@ -586,7 +586,7 @@ rb_objspace_free(rb_objspace_t *objspace)
 
 #ifndef HEAP_ALIGN_LOG
 /* default tiny heap size: 16KB */
-#define HEAP_ALIGN_LOG 15
+#define HEAP_ALIGN_LOG 14
 #endif
 #define HEAP_ALIGN (1UL << HEAP_ALIGN_LOG)
 #define HEAP_ALIGN_MASK (~(~0UL << HEAP_ALIGN_LOG))
@@ -3702,6 +3702,7 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_used")), SIZET2NUM(objspace->heap.used));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_length")), SIZET2NUM(objspace->heap.length));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_increment")), SIZET2NUM(objspace->heap.increment));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_decrement")), SIZET2NUM(objspace->heap.decrement));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace_live_num(objspace)));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(objspace->heap.free_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
