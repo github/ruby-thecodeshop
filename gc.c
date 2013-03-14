@@ -2288,9 +2288,9 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
         else {
             sweep_slot->free_next = NULL;
         }
-        objspace->total_freed_object_num += freed_num;
         objspace->heap.free_num += freed_num + empty_num;
     }
+    objspace->total_freed_object_num += freed_num;
     objspace->heap.final_num += final_num;
 
     if (deferred_final_list && !finalizing) {
