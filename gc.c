@@ -3693,19 +3693,18 @@ gc_stat(int argc, VALUE *argv, VALUE self)
         hash = rb_hash_new();
     }
 
-    rest_sweep(objspace);
-
     rb_hash_aset(hash, ID2SYM(rb_intern("count")), SIZET2NUM(objspace->count));
 
     /* implementation dependent counters */
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_used")), SIZET2NUM(objspace->heap.used));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_length")), SIZET2NUM(objspace->heap.length));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_obj_limit")), SIZET2NUM(HEAP_OBJ_LIMIT));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_total_num")), SIZET2NUM(heaps_used * HEAP_OBJ_LIMIT));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace_live_num(objspace)));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(heaps_used * HEAP_OBJ_LIMIT - objspace_live_num(objspace)));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_increment")), SIZET2NUM(objspace->heap.increment));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_decrement")), SIZET2NUM(objspace->heap.decrement));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_marked_num")), SIZET2NUM(objspace->heap.marked_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_reused_num")), SIZET2NUM(objspace->heap.reused_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("total_allocated_object")), SIZET2NUM(objspace->total_allocated_object_num));
