@@ -385,7 +385,7 @@ typedef struct rb_objspace {
         struct heaps_slot *reserve_slots;
 	RVALUE *range[2];
 	size_t marked_num;
-	size_t free_num;
+	size_t reused_num;
 	size_t final_num;
 	size_t free_min;
 	size_t free_max;
@@ -1257,7 +1257,6 @@ assign_heap_slot(rb_objspace_t *objspace)
     membase->limit = objs;
     heaps->membase = membase;
     memset(heaps->bits, 0, HEAP_BITMAP_LIMIT * sizeof(uintptr_t));
-    /* objspace->heap.free_num += objs;*/
     pend = p + objs;
     if (lomem == 0 || lomem > p) lomem = p;
     if (himem < pend) himem = pend;
@@ -2167,7 +2166,7 @@ finalize_list(rb_objspace_t *objspace, RVALUE *p)
 	run_final(objspace, (VALUE)p);
 	if (!FL_TEST(p, FL_SINGLETON)) { /* not freeing page */
             objspace->total_freed_object_num++;
-            objspace->heap.free_num++;
+            objspace->heap.reused_num++;
             add_slot_local_freelist(objspace, p);
 	}
 	else {
@@ -2291,7 +2290,7 @@ slot_sweep(rb_objspace_t *objspace, struct heaps_slot *sweep_slot)
         else {
             sweep_slot->free_next = NULL;
         }
-        objspace->heap.free_num += freed_num + empty_num;
+        objspace->heap.reused_num += freed_num + empty_num;
     }
     objspace->total_freed_object_num += freed_num;
     objspace->heap.final_num += final_num;
@@ -2352,7 +2351,7 @@ before_gc_sweep(rb_objspace_t *objspace)
     }
 
     objspace->heap.sweep_slots = heaps;
-    objspace->heap.free_num = 0;
+    objspace->heap.reused_num = 0;
     objspace->heap.free_slots = NULL;
 
     /* sweep unlinked method entries */
@@ -2484,7 +2483,7 @@ rb_gc_force_recycle(VALUE p)
         add_slot_local_freelist(objspace, (RVALUE *)p);
     }
     else {
-        objspace->heap.free_num++;
+        objspace->heap.reused_num++;
         slot = add_slot_local_freelist(objspace, (RVALUE *)p);
         if (slot->free_next == NULL) {
             link_free_heap_slot(objspace, slot);
@@ -3708,7 +3707,7 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_decrement")), SIZET2NUM(objspace->heap.decrement));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_marked_num")), SIZET2NUM(objspace->heap.marked_num));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_reused_num")), SIZET2NUM(objspace->heap.free_num));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_reused_num")), SIZET2NUM(objspace->heap.reused_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("total_allocated_object")), SIZET2NUM(objspace->total_allocated_object_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("total_freed_object")), SIZET2NUM(objspace->total_freed_object_num));
     return hash;
