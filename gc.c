@@ -204,6 +204,7 @@ getrusage_time(void)
 	if (objspace->profile.run) {\
 	    gc_time = getrusage_time() - gc_time;\
 	    if (gc_time < 0) gc_time = 0;\
+	    objspace->gc_time += gc_time;\
 	    objspace->profile.record[count].gc_time = gc_time;\
 	    objspace->profile.record[count].is_marked = !!(marked);\
 	    GC_PROF_SET_HEAP_INFO(objspace->profile.record[count]);\
@@ -414,6 +415,7 @@ typedef struct rb_objspace {
     } profile;
     struct gc_list *global_list;
     size_t count;
+    double gc_time;
     size_t total_allocated_object_num;
     size_t total_freed_object_num;
     int gc_stress;
@@ -762,6 +764,7 @@ gc_profile_clear(void)
     rb_objspace_t *objspace = &rb_objspace;
     MEMZERO(objspace->profile.record, gc_profile_record, objspace->profile.size);
     objspace->profile.count = 0;
+    objspace->gc_time = 0;
     return Qnil;
 }
 
@@ -3695,6 +3698,7 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     }
 
     rb_hash_aset(hash, ID2SYM(rb_intern("count")), SIZET2NUM(objspace->count));
+    rb_hash_aset(hash, ID2SYM(rb_intern("time")), SIZET2NUM((size_t)(objspace->gc_time * 1000)));
 
     /* implementation dependent counters */
     total_slots = heaps_used * HEAP_OBJ_LIMIT;
