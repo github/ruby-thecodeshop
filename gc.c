@@ -3681,6 +3681,7 @@ gc_count(VALUE self)
 static VALUE
 gc_stat(int argc, VALUE *argv, VALUE self)
 {
+    size_t total_slots, live_slots, free_slots;
     rb_objspace_t *objspace = &rb_objspace;
     VALUE hash;
 
@@ -3696,17 +3697,23 @@ gc_stat(int argc, VALUE *argv, VALUE self)
     rb_hash_aset(hash, ID2SYM(rb_intern("count")), SIZET2NUM(objspace->count));
 
     /* implementation dependent counters */
+    total_slots = heaps_used * HEAP_OBJ_LIMIT;
+    live_slots = objspace_live_num(objspace);
+    free_slots = total_slots - live_slots;
+
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_used")), SIZET2NUM(objspace->heap.used));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_length")), SIZET2NUM(objspace->heap.length));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_obj_limit")), SIZET2NUM(HEAP_OBJ_LIMIT));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_total_num")), SIZET2NUM(heaps_used * HEAP_OBJ_LIMIT));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(objspace_live_num(objspace)));
-    rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(heaps_used * HEAP_OBJ_LIMIT - objspace_live_num(objspace)));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_total_num")), SIZET2NUM(total_slots));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_live_num")), SIZET2NUM(live_slots));
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_free_num")), SIZET2NUM(free_slots));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_final_num")), SIZET2NUM(objspace->heap.final_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_increment")), SIZET2NUM(objspace->heap.increment));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_decrement")), SIZET2NUM(objspace->heap.decrement));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_marked_num")), SIZET2NUM(objspace->heap.marked_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("heap_reused_num")), SIZET2NUM(objspace->heap.reused_num));
+    rb_hash_aset(hash, ID2SYM(rb_intern("is_lazy_sweeping")), is_lazy_sweeping(objspace) ? Qtrue : Qfalse);
+    rb_hash_aset(hash, ID2SYM(rb_intern("heap_sweep_pct")), !is_lazy_sweeping(objspace) ? INT2FIX(100) : SIZET2NUM(objspace->heap.reused_num * 100 / (total_slots - objspace->heap.marked_num)));
     rb_hash_aset(hash, ID2SYM(rb_intern("total_allocated_object")), SIZET2NUM(objspace->total_allocated_object_num));
     rb_hash_aset(hash, ID2SYM(rb_intern("total_freed_object")), SIZET2NUM(objspace->total_freed_object_num));
     return hash;
