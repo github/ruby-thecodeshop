@@ -97,6 +97,7 @@ void Init_File(void);
 
 /* gc.c */
 void Init_heap(void);
+void rb_obj_enable_metadata(void);
 
 /* inits.c */
 void rb_call_inits(void);
@@ -190,6 +191,7 @@ void rb_vm_change_state(void);
 void rb_vm_inc_const_missing_count(void);
 void rb_thread_mark(void *th);
 const void **rb_vm_get_insns_address_table(void);
+VALUE rb_sourcefilename(void);
 
 /* vm_dump.c */
 void rb_vm_bugreport(void);

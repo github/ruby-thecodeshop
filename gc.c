@@ -96,6 +96,7 @@ typedef struct {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     int gc_stress;
 #endif
+    int track_metadata;
 } ruby_gc_params_t;
 
 static ruby_gc_params_t initial_params = {
@@ -106,6 +107,7 @@ static ruby_gc_params_t initial_params = {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     FALSE,
 #endif
+    FALSE
 };
 
 #define nomem_error GET_VM()->special_exceptions[ruby_error_nomemory]
@@ -308,15 +310,16 @@ typedef struct RVALUE {
 	struct RRational rational;
 	struct RComplex complex;
     } as;
-#ifdef GC_DEBUG
-    const char *file;
-    int   line;
-#endif
 } RVALUE;
 
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__)
 #pragma pack(pop)
 #endif
+
+typedef struct rb_obj_metadata {
+    VALUE file;
+    unsigned short line;
+} rb_obj_metadata_t;
 
 struct heaps_slot {
     struct heaps_header *membase;
@@ -333,6 +336,7 @@ struct heaps_header {
     RVALUE *start;
     RVALUE *end;
     size_t limit;
+    rb_obj_metadata_t *metadata;
 };
 
 struct gc_list {
@@ -456,6 +460,7 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define initial_heap_min_slots	initial_params.initial_heap_min_slots
 #define initial_free_min	initial_params.initial_free_min
 #define initial_growth_factor	initial_params.initial_growth_factor
+#define track_metadata		initial_params.track_metadata
 
 #define is_lazy_sweeping(objspace) ((objspace)->heap.sweep_slots != 0)
 
@@ -486,6 +491,12 @@ rb_objspace_alloc(void)
 #endif
 
 static void initial_expand_heap(rb_objspace_t *objspace);
+
+void
+rb_obj_enable_metadata(void)
+{
+    track_metadata = TRUE;
+}
 
 void
 rb_gc_set_params(void)
@@ -569,6 +580,8 @@ rb_objspace_free(rb_objspace_t *objspace)
 	size_t i;
 	for (i = 0; i < heaps_used; ++i) {
             free(objspace->heap.sorted[i]->base);
+            if (objspace->heap.sorted[i]->metadata)
+                free(objspace->heap.sorted[i]->metadata);
 	    aligned_free(objspace->heap.sorted[i]);
 	}
 	free(objspace->heap.sorted);
@@ -1258,6 +1271,7 @@ assign_heap_slot(rb_objspace_t *objspace)
     membase->base = heaps;
     membase->bits = heaps->bits;
     membase->limit = objs;
+    membase->metadata = NULL;
     heaps->membase = membase;
     memset(heaps->bits, 0, HEAP_BITMAP_LIMIT * sizeof(uintptr_t));
     pend = p + objs;
@@ -1392,11 +1406,18 @@ rb_newobj(void)
     }
 
     MEMZERO((void*)obj, RVALUE, 1);
-#ifdef GC_DEBUG
-    RANY(obj)->file = rb_sourcefile();
-    RANY(obj)->line = rb_sourceline();
-#endif
     objspace->total_allocated_object_num++;
+
+    if (UNLIKELY(track_metadata)) {
+        struct heaps_header *heap = GET_HEAP_HEADER(obj);
+        if (!heap->metadata)
+            heap->metadata = calloc(HEAP_OBJ_LIMIT, sizeof(rb_obj_metadata_t));
+        if (heap->metadata) {
+            rb_obj_metadata_t *meta = &heap->metadata[NUM_IN_SLOT(obj)];
+            meta->file = rb_sourcefilename();
+            meta->line = rb_sourceline();
+        }
+    }
 
     return obj;
 }
@@ -1868,11 +1889,14 @@ rb_gc_mark(VALUE ptr)
     gc_mark(&rb_objspace, ptr, 0);
 }
 
+static inline rb_obj_metadata_t *rb_obj_get_metadata(VALUE obj);
+
 static void
 gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
 {
     register RVALUE *obj = RANY(ptr);
     register uintptr_t *bits;
+    register rb_obj_metadata_t *meta;
 
     goto marking;		/* skip */
 
@@ -1889,6 +1913,9 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
     if (FL_TEST(obj, FL_EXIVAR)) {
 	rb_mark_generic_ivar(ptr);
     }
+
+    if ((meta = rb_obj_get_metadata(ptr)) && RTEST(meta->file))
+        gc_mark(objspace, meta->file, lev);
 
     switch (BUILTIN_TYPE(obj)) {
       case T_NIL:
@@ -2216,6 +2243,8 @@ free_unused_heap(rb_objspace_t *objspace, struct heaps_header *heap)
             struct heaps_slot* h = objspace->heap.sorted[mid]->base;
             h->free_next = objspace->heap.reserve_slots;
             objspace->heap.reserve_slots = h;
+            if (objspace->heap.sorted[mid]->metadata)
+                free(objspace->heap.sorted[mid]->metadata);
             aligned_free(objspace->heap.sorted[mid]);
             heaps_used--;
             MEMMOVE(objspace->heap.sorted + mid, objspace->heap.sorted + mid + 1,
@@ -3659,6 +3688,43 @@ count_objects(int argc, VALUE *argv, VALUE os)
     return hash;
 }
 
+static inline rb_obj_metadata_t *
+rb_obj_get_metadata(VALUE obj)
+{
+    struct heaps_header *heap;
+
+    if (SPECIAL_CONST_P(obj))
+        return NULL;
+
+    heap = GET_HEAP_HEADER(obj);
+    if (!heap->metadata)
+        return NULL;
+
+    return &heap->metadata[NUM_IN_SLOT(obj)];
+}
+
+static VALUE
+rb_obj_sourcefile(VALUE obj)
+{
+    rb_obj_metadata_t *meta = rb_obj_get_metadata(obj);
+
+    if (!track_metadata)
+        rb_warn("__sourcefile__ requires --debug-objects");
+
+    return meta ? meta->file : Qnil;
+}
+
+static VALUE
+rb_obj_sourceline(VALUE obj)
+{
+    rb_obj_metadata_t *meta = rb_obj_get_metadata(obj);
+
+    if (!track_metadata)
+        rb_warn("__sourceline__ requires --debug-objects");
+
+    return meta ? INT2FIX(meta->line) : Qnil;
+}
+
 /*
  *  call-seq:
  *     GC.count -> Integer
@@ -4023,6 +4089,9 @@ Init_GC(void)
 
     rb_define_method(rb_cBasicObject, "__id__", rb_obj_id, 0);
     rb_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
+
+    rb_define_method(rb_cBasicObject, "__sourcefile__", rb_obj_sourcefile, 0);
+    rb_define_method(rb_cBasicObject, "__sourceline__", rb_obj_sourceline, 0);
 
     rb_define_module_function(rb_mObSpace, "count_objects", count_objects, -1);
 

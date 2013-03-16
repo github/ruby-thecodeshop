@@ -1021,6 +1021,9 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 		set_source_encoding_once(opt, s, 0);
 	    }
 #endif
+	    else if (strcmp("debug-objects", s) == 0) {
+                rb_obj_enable_metadata();
+            }
 	    else if (strcmp("encoding-compatibility", s) == 0) {
                 rb_encoding_compat = 1;
             }
