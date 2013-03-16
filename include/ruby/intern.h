@@ -425,6 +425,7 @@ void rb_gc_mark_maybe(VALUE);
 void rb_gc_mark(VALUE);
 void rb_gc_force_recycle(VALUE);
 void rb_gc(void);
+void rb_gc_mark_only(void);
 void rb_gc_copy_finalizer(VALUE,VALUE);
 void rb_gc_finalize_deferred(void);
 void rb_gc_call_finalizer_at_exit(void);

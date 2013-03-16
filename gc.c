@@ -615,7 +615,7 @@ extern st_table *rb_class_tbl;
 int ruby_disable_gc_stress = 0;
 
 static void run_final(rb_objspace_t *objspace, VALUE obj);
-static int garbage_collect(rb_objspace_t *objspace);
+static int garbage_collect(rb_objspace_t *objspace, int mark_only);
 static int gc_lazy_sweep(rb_objspace_t *objspace);
 
 void
@@ -795,7 +795,7 @@ negative_size_allocation_error(const char *msg)
 static void *
 gc_with_gvl(void *ptr)
 {
-    return (void *)(VALUE)garbage_collect((rb_objspace_t *)ptr);
+    return (void *)(VALUE)garbage_collect((rb_objspace_t *)ptr, 0);
 }
 
 static int
@@ -803,7 +803,7 @@ garbage_collect_with_gvl(rb_objspace_t *objspace)
 {
     if (dont_gc) return TRUE;
     if (ruby_thread_has_gvl_p()) {
-	return garbage_collect(objspace);
+	return garbage_collect(objspace, 0);
     }
     else {
 	if (ruby_native_thread_p()) {
@@ -1372,7 +1372,7 @@ rb_newobj(void)
     }
 
     if (UNLIKELY(ruby_gc_stress && !ruby_disable_gc_stress)) {
-	if (!garbage_collect(objspace)) {
+	if (!garbage_collect(objspace, 0)) {
 	    during_gc = 0;
 	    rb_memerror();
 	}
@@ -2413,7 +2413,7 @@ gc_lazy_sweep(rb_objspace_t *objspace)
     INIT_GC_PROF_PARAMS;
 
     if (objspace->flags.dont_lazy_sweep)
-        return garbage_collect(objspace);
+        return garbage_collect(objspace, 0);
 
 
     if (!ready_to_gc(objspace)) return TRUE;
@@ -2731,7 +2731,7 @@ gc_marks(rb_objspace_t *objspace)
 }
 
 static int
-garbage_collect(rb_objspace_t *objspace)
+garbage_collect(rb_objspace_t *objspace, int mark_only)
 {
     INIT_GC_PROF_PARAMS;
 
@@ -2751,9 +2751,14 @@ garbage_collect(rb_objspace_t *objspace)
     during_gc++;
     gc_marks(objspace);
 
-    GC_PROF_SWEEP_TIMER_START;
-    gc_sweep(objspace);
-    GC_PROF_SWEEP_TIMER_STOP;
+    if (!mark_only) {
+        GC_PROF_SWEEP_TIMER_START;
+        gc_sweep(objspace);
+        GC_PROF_SWEEP_TIMER_STOP;
+    } else {
+        before_gc_sweep(objspace);
+        during_gc = 0;
+    }
 
     GC_PROF_TIMER_STOP(Qtrue);
     if (GC_NOTIFY) printf("end garbage_collect()\n");
@@ -2763,7 +2768,7 @@ garbage_collect(rb_objspace_t *objspace)
 int
 rb_garbage_collect(void)
 {
-    return garbage_collect(&rb_objspace);
+    return garbage_collect(&rb_objspace, 0);
 }
 
 void
@@ -2794,6 +2799,13 @@ VALUE
 rb_gc_start(void)
 {
     rb_gc();
+    return Qnil;
+}
+
+VALUE
+rb_gc_mark_objects(void)
+{
+    rb_gc_mark_only();
     return Qnil;
 }
 
@@ -3375,7 +3387,14 @@ void
 rb_gc(void)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    garbage_collect(objspace);
+    garbage_collect(objspace, 0);
+    if (!finalizing) finalize_deferred(objspace);
+}
+
+void rb_gc_mark_only(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    garbage_collect(objspace, 1);
     if (!finalizing) finalize_deferred(objspace);
 }
 
@@ -3964,6 +3983,7 @@ Init_GC(void)
 
     rb_mGC = rb_define_module("GC");
     rb_define_singleton_method(rb_mGC, "start", rb_gc_start, 0);
+    rb_define_singleton_method(rb_mGC, "mark_objects", rb_gc_mark_objects, 0);
     rb_define_singleton_method(rb_mGC, "enable", rb_gc_enable, 0);
     rb_define_singleton_method(rb_mGC, "disable", rb_gc_disable, 0);
     rb_define_singleton_method(rb_mGC, "stress", gc_stress_get, 0);
