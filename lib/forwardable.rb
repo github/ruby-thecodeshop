@@ -134,6 +134,7 @@
 module Forwardable
   FORWARDABLE_VERSION = "1.1.0"
 
+  FILE_REGEXP = %r"#{Regexp.quote(__FILE__)}"o
   @debug = nil
   class << self
     attr_accessor :debug
@@ -200,7 +201,7 @@ module Forwardable
         begin
           #{accessor}.__send__(:#{method}, *args, &block)
         rescue Exception
-          $@.delete_if{|s| %r"#{Regexp.quote(__FILE__)}"o =~ s} unless Forwardable::debug
+          $@.delete_if{|s| Forwardable::FILE_REGEXP =~ s} unless Forwardable::debug
           ::Kernel::raise
         end
       end
@@ -270,7 +271,7 @@ module SingleForwardable
         begin
           #{accessor}.__send__(:#{method}, *args, &block)
         rescue Exception
-          $@.delete_if{|s| %r"#{Regexp.quote(__FILE__)}"o =~ s} unless Forwardable::debug
+          $@.delete_if{|s| Forwardable::FILE_REGEXP =~ s} unless Forwardable::debug
           ::Kernel::raise
         end
       end
