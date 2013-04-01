@@ -2072,6 +2072,12 @@ nsdr(void)
     return ary;
 }
 
+static VALUE
+rbvm_global_state_version(VALUE self)
+{
+  return ruby_vm_global_state_version;
+}
+
 void
 Init_VM(void)
 {
@@ -2097,6 +2103,8 @@ Init_VM(void)
     rb_obj_freeze(fcore);
     rb_gc_register_mark_object(fcore);
     rb_mRubyVMFrozenCore = fcore;
+
+    rb_define_singleton_method(rb_cRubyVM, "state_version", rbvm_global_state_version, 0);
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);
