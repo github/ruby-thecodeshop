@@ -2097,6 +2097,25 @@ rbvm_method_cache_miss_time(VALUE self)
   return DBL2NUM(cache_stats.miss_time);
 }
 
+static VALUE
+rbvm_method_cache_invalidation_log_equals(VALUE self, VALUE io)
+{
+  char *headerfooter;
+  time_t now = time(NULL);
+
+  if (io == Qnil && cache_stats.invalidation_log != Qnil) {
+    method_cache_log(cache_stats.invalidation_log,
+	"[%ld] stopped logging method cache invalidations\n", (long) now);
+  } else if (io != Qnil) {
+    method_cache_log(io,
+	"[%ld] started logging method cache invalidations\n", (long) now);
+  }
+
+  cache_stats.invalidation_log = io;
+
+  return Qnil;
+}
+
 void
 Init_VM(void)
 {
@@ -2130,6 +2149,7 @@ Init_VM(void)
     rb_define_singleton_method(rb_mMethodCache, "hits", rbvm_method_cache_hits, 0);
     rb_define_singleton_method(rb_mMethodCache, "misses", rbvm_method_cache_misses, 0);
     rb_define_singleton_method(rb_mMethodCache, "miss_time", rbvm_method_cache_miss_time, 0);
+    rb_define_singleton_method(rb_mMethodCache, "invalidation_log=", rbvm_method_cache_invalidation_log_equals, 1);
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);
