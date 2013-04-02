@@ -33,6 +33,7 @@
 #define PROCDEBUG 0
 
 VALUE rb_cRubyVM;
+VALUE rb_mMethodCache;
 VALUE rb_cThread;
 VALUE rb_cEnv;
 VALUE rb_mRubyVMFrozenCore;
@@ -2078,6 +2079,24 @@ rbvm_global_state_version(VALUE self)
   return ULONG2NUM(ruby_vm_global_state_version);
 }
 
+static VALUE
+rbvm_method_cache_hits(VALUE self)
+{
+  return ULONG2NUM(cache_stats.hits);
+}
+
+static VALUE
+rbvm_method_cache_misses(VALUE self)
+{
+  return ULONG2NUM(cache_stats.misses);
+}
+
+static VALUE
+rbvm_method_cache_miss_time(VALUE self)
+{
+  return DBL2NUM(cache_stats.miss_time);
+}
+
 void
 Init_VM(void)
 {
@@ -2104,7 +2123,13 @@ Init_VM(void)
     rb_gc_register_mark_object(fcore);
     rb_mRubyVMFrozenCore = fcore;
 
-    rb_define_singleton_method(rb_cRubyVM, "state_version", rbvm_global_state_version, 0);
+    rb_mMethodCache = rb_define_module_under(rb_cRubyVM, "MethodCache");
+
+    rb_define_singleton_method(rb_mMethodCache, "invalidations", rbvm_global_state_version, 0);
+
+    rb_define_singleton_method(rb_mMethodCache, "hits", rbvm_method_cache_hits, 0);
+    rb_define_singleton_method(rb_mMethodCache, "misses", rbvm_method_cache_misses, 0);
+    rb_define_singleton_method(rb_mMethodCache, "miss_time", rbvm_method_cache_miss_time, 0);
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);

@@ -2,9 +2,21 @@
  * This file is included by vm.c
  */
 
+#include "timing.c"
+
 #define CACHE_SIZE 0x800
 #define CACHE_MASK 0x7ff
 #define EXPR1(c,m) ((((c)>>3)^(m))&CACHE_MASK)
+
+typedef struct {
+  unsigned long hits;
+  unsigned long misses;
+
+  double miss_start;
+  double miss_time;
+} cache_stats_t;
+
+static cache_stats_t cache_stats = {};
 
 static void rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me);
 
@@ -412,6 +424,19 @@ rb_method_entry_get_without_cache(VALUE klass, ID id)
     return me;
 }
 
+static inline void
+start_time_method_cache_miss(void)
+{
+  cache_stats.miss_start = getrusage_time();
+}
+
+static inline void
+end_time_method_cache_miss(void)
+{
+  cache_stats.miss_time += getrusage_time() - cache_stats.miss_start;
+  cache_stats.miss_start = 0;
+}
+
 rb_method_entry_t *
 rb_method_entry(VALUE klass, ID id)
 {
@@ -420,10 +445,17 @@ rb_method_entry(VALUE klass, ID id)
     ent = cache + EXPR1(klass, id);
     if (ent->filled_version == GET_VM_STATE_VERSION() &&
 	ent->mid == id && ent->klass == klass) {
+	cache_stats.hits++;
 	return ent->me;
     }
 
-    return rb_method_entry_get_without_cache(klass, id);
+    cache_stats.misses++;
+
+    start_time_method_cache_miss();
+    ent = rb_method_entry_get_without_cache(klass, id);
+    end_time_method_cache_miss();
+
+    return ent;
 }
 
 static void
