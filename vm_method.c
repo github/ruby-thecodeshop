@@ -432,6 +432,7 @@ rb_method_entry_t *
 rb_method_entry(VALUE klass, ID id)
 {
     struct cache_entry *ent;
+    rb_method_entry_t *me;
 
     ent = cache + EXPR1(klass, id);
     if (ent->filled_version == GET_VM_STATE_VERSION() &&
@@ -443,10 +444,10 @@ rb_method_entry(VALUE klass, ID id)
     cache_stats.misses++;
 
     start_time_method_cache_miss();
-    ent = rb_method_entry_get_without_cache(klass, id);
+    me = rb_method_entry_get_without_cache(klass, id);
     end_time_method_cache_miss();
 
-    return ent;
+    return me;
 }
 
 static void
