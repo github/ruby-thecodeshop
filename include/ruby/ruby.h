@@ -627,12 +627,30 @@ struct RObject {
 /** @internal */
 typedef struct rb_classext_struct rb_classext_t;
 
+#define METHOD_CACHE_TABLE_BASE_SIZE 50
+
+struct rb_method_entry;
+
+typedef struct method_cache_entry {
+  VALUE filled_version;
+  ID mid;
+  struct rb_method_entry *me;
+  struct method_cache_entry *next;
+} method_cache_entry_t;
+
+typedef struct {
+  unsigned int size_factor;
+  method_cache_entry_t *table;
+} method_cache_t;
+
 struct RClass {
     struct RBasic basic;
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
+    method_cache_t *mc_tbl;
 };
+
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
 #define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
 #define RMODULE_CONST_TBL(m) RCLASS_CONST_TBL(m)

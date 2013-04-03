@@ -35,6 +35,7 @@ struct rb_classext_struct {
 #define RCLASS_IV_TBL(c) (RCLASS_EXT(c)->iv_tbl)
 #define RCLASS_CONST_TBL(c) (RCLASS_EXT(c)->const_tbl)
 #define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
+#define RCLASS_MC_TBL(c) (RCLASS(c)->mc_tbl)
 #define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
 
 struct vtm; /* defined by timev.h */
