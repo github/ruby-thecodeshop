@@ -5,38 +5,19 @@
 #include "timing.c"
 #include "ruby/intern.h"
 
-#define CACHE_SIZE 0x800
-#define CACHE_MASK 0x7ff
-#define EXPR1(c,m) ((((c)>>3)^(m))&CACHE_MASK)
-
 static void rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me);
 
 static ID object_id, respond_to_missing;
 static ID removed, singleton_removed, undefined, singleton_undefined;
 static ID added, singleton_added, attached;
 
-struct cache_entry {		/* method hash table. */
-    VALUE filled_version;        /* filled state version */
-    ID mid;			/* method's id */
-    VALUE klass;		/* receiver's class */
-    rb_method_entry_t *me;
-};
-
-static struct cache_entry cache[CACHE_SIZE];
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
 static void
 vm_clear_global_method_cache(void)
 {
-    struct cache_entry *ent, *end;
-
-    ent = cache;
-    end = ent + CACHE_SIZE;
-    while (ent < end) {
-	ent->filled_version = 0;
-	ent++;
-    }
+  // TODO
 }
 
 void
