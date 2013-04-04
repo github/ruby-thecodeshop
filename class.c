@@ -34,6 +34,42 @@
 extern st_table *rb_class_tbl;
 static ID id_attached;
 
+static unsigned
+rb_class_subclass_add(VALUE super, VALUE klass)
+{
+  subclass_entry_t *entry;
+  subclass_entry_t *newentry;
+
+  if (RCLASS_SUBCLASSES(super) != NULL) {
+    entry = RCLASS_SUBCLASSES(super);
+    if (entry->klass == klass) {
+      return 0;
+    } else {
+      while(entry->next != NULL)
+      {
+	entry = entry->next;
+	if (entry->klass == klass)
+	  return 0;
+      }
+    }
+  }
+
+  newentry = xmalloc(sizeof(subclass_entry_t));
+  newentry->klass = klass;
+  newentry->next = NULL;
+  newentry->prev = NULL;
+  RCLASS_SUPERCLASS_LISTNODE(klass) = newentry;
+
+  if (entry == NULL) {
+    RCLASS_SUBCLASSES(super) = newentry;
+  } else {
+    entry->next = newentry;
+    newentry->prev = entry;
+  }
+
+  return 1;
+}
+
 /**
  * Allocates a struct RClass for a new class.
  *
@@ -58,6 +94,8 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_M_TBL(obj) = 0;
     RCLASS_SUPER(obj) = 0;
     RCLASS_IV_INDEX_TBL(obj) = 0;
+    RCLASS_SUBCLASSES(obj) = NULL;
+
     return (VALUE)obj;
 }
 
@@ -78,6 +116,10 @@ rb_class_boot(VALUE super)
 
     RCLASS_SUPER(klass) = super;
     RCLASS_M_TBL(klass) = st_init_numtable();
+
+    if (super > 6) {
+      rb_class_subclass_add(super, klass);
+    }
 
     OBJ_INFECT(klass, super);
     return (VALUE)klass;

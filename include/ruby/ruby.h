@@ -643,12 +643,23 @@ typedef struct {
   method_cache_entry_t *table;
 } method_cache_t;
 
+struct subclass_entry;
+typedef struct subclass_entry subclass_entry_t;
+
+struct subclass_entry {
+    VALUE klass;
+    subclass_entry_t *prev;
+    subclass_entry_t *next;
+};
+
 struct RClass {
     struct RBasic basic;
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
     method_cache_t *mc_tbl;
+    subclass_entry_t *subclasses;
+    subclass_entry_t *superclasslistnode;
 };
 
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)

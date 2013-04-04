@@ -1676,6 +1676,22 @@ rb_class_superclass(VALUE klass)
 }
 
 VALUE
+rb_class_subclasses(VALUE self)
+{
+  VALUE ary = rb_ary_new();
+  subclass_entry_t *entry;
+
+  if (RCLASS_SUBCLASSES(self) != NULL) {
+    entry = RCLASS_SUBCLASSES(self);
+    do {
+      rb_ary_push(ary, entry->klass);
+    } while((entry = entry->next) != NULL);
+  }
+
+  return ary;
+}
+
+VALUE
 rb_class_get_superclass(VALUE klass)
 {
     return RCLASS_SUPER(klass);
@@ -2793,6 +2809,7 @@ Init_Object(void)
     rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_define_method(rb_cClass, "superclass", rb_class_superclass, 0);
+    rb_define_method(rb_cClass, "subclasses", rb_class_subclasses, 0);
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");
