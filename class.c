@@ -57,15 +57,14 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   newentry = xmalloc(sizeof(subclass_entry_t));
   newentry->klass = klass;
   newentry->next = NULL;
-  newentry->prev = NULL;
-  RCLASS_PARENT_SUBCLASSES_NODE(klass) = newentry;
 
   if (entry == NULL) {
     RCLASS_SUBCLASSES(super) = newentry;
   } else {
     entry->next = newentry;
-    newentry->prev = entry;
   }
+
+  RCLASS_PARENT_SUBCLASSES(klass) = RCLASS_SUBCLASSES(super);
 
   return 1;
 }

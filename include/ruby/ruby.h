@@ -648,7 +648,6 @@ typedef struct subclass_entry subclass_entry_t;
 
 struct subclass_entry {
     VALUE klass;
-    subclass_entry_t *prev;
     subclass_entry_t *next;
 };
 
@@ -659,7 +658,7 @@ struct RClass {
     struct st_table *iv_index_tbl;
     method_cache_t *mc_tbl;
     subclass_entry_t *subclasses;
-    subclass_entry_t *parent_subclasses_node;
+    subclass_entry_t *parent_subclasses;
 };
 
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
