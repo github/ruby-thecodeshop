@@ -60,11 +60,11 @@ rb_class_subclass_add(VALUE super, VALUE klass)
 
   if (entry == NULL) {
     RCLASS_SUBCLASSES(super) = newentry;
+    RCLASS_PARENT_SUBCLASSES(klass) = &RCLASS_SUBCLASSES(super);
   } else {
     entry->next = newentry;
+    RCLASS_PARENT_SUBCLASSES(klass) = &entry->next;
   }
-
-  RCLASS_PARENT_SUBCLASSES(klass) = RCLASS_SUBCLASSES(super);
 
   return 1;
 }
