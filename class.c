@@ -80,7 +80,9 @@ rb_class_detach_from_superclass_subclass_list(VALUE klass)
       subclass_entry_t *entry = *RCLASS_PARENT_SUBCLASSES(klass);
       if (entry) {
 	*RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
-	free(entry);
+	//free(entry); TODO: why does this segfault?
+      } else {
+	*RCLASS_PARENT_SUBCLASSES(klass) = NULL;
       }
     }
   }
