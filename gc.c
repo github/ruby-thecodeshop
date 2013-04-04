@@ -2491,6 +2491,7 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
         if (RCLASS_SUBCLASSES(obj) != NULL) {
             rb_class_free_subclass_list(obj);
         }
+        rb_class_detach_from_superclass_subclass_list(obj);
         xfree(RANY(obj)->as.klass.ptr);
 	break;
       case T_STRING:

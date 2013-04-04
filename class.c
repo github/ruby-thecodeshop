@@ -72,8 +72,8 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   }
 }
 
-VALUE
-rb_class_set_superclass(VALUE klass, VALUE super)
+inline void
+rb_class_detach_from_superclass_subclass_list(VALUE klass)
 {
   if (RCLASS_SUPER(klass) && RCLASS_SUPER(klass) != Qundef) {
     if (RCLASS_PARENT_SUBCLASSES(klass) != NULL) {
@@ -84,6 +84,12 @@ rb_class_set_superclass(VALUE klass, VALUE super)
       }
     }
   }
+}
+
+VALUE
+rb_class_set_superclass(VALUE klass, VALUE super)
+{
+  rb_class_detach_from_superclass_subclass_list(klass);
 
   rb_class_subclass_add(super, klass);
   RCLASS_SUPER(klass) = super;

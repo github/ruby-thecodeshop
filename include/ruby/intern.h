@@ -164,6 +164,7 @@ VALUE rb_class_init_copy(VALUE, VALUE);
 void rb_class_free_subclass_list(VALUE);
 VALUE rb_class_set_superclass(VALUE, VALUE);
 VALUE rb_singleton_class_clone(VALUE);
+inline void rb_class_detach_from_superclass_subclass_list(VALUE);
 void rb_singleton_class_attached(VALUE,VALUE);
 VALUE rb_make_metaclass(VALUE, VALUE);
 void rb_check_inheritable(VALUE);
