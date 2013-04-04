@@ -58,7 +58,7 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   newentry->klass = klass;
   newentry->next = NULL;
   newentry->prev = NULL;
-  RCLASS_SUPERCLASS_LISTNODE(klass) = newentry;
+  RCLASS_PARENT_SUBCLASSES_NODE(klass) = newentry;
 
   if (entry == NULL) {
     RCLASS_SUBCLASSES(super) = newentry;

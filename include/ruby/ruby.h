@@ -659,7 +659,7 @@ struct RClass {
     struct st_table *iv_index_tbl;
     method_cache_t *mc_tbl;
     subclass_entry_t *subclasses;
-    subclass_entry_t *superclasslistnode;
+    subclass_entry_t *parent_subclasses_node;
 };
 
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
