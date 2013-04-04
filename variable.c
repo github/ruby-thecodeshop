@@ -1700,7 +1700,7 @@ rb_const_remove(VALUE mod, ID id)
 		      rb_class2name(mod), rb_id2name(id));
     }
 
-    rb_vm_change_state();
+    rb_clear_cache_by_class(mod);
 
     val = ((rb_const_entry_t*)v)->value;
     if (val == Qundef) {

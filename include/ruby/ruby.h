@@ -632,7 +632,7 @@ typedef struct rb_classext_struct rb_classext_t;
 struct rb_method_entry;
 
 typedef struct method_cache_entry {
-  VALUE filled_version;
+  VALUE seq;
   ID mid;
   struct rb_method_entry *me;
   struct method_cache_entry *next;
@@ -656,6 +656,7 @@ struct RClass {
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
+    VALUE seq;
     method_cache_t *mc_tbl;
     subclass_entry_t *subclasses;
     subclass_entry_t **parent_subclasses;

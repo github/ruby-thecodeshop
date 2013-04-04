@@ -20,24 +20,6 @@ vm_clear_global_method_cache(void)
   // TODO
 }
 
-void
-rb_clear_cache(void)
-{
-    rb_vm_change_state();
-}
-
-static void
-rb_clear_cache_for_undef(VALUE klass, ID id)
-{
-    rb_vm_change_state();
-}
-
-static void
-rb_clear_cache_by_id(ID id)
-{
-    rb_vm_change_state();
-}
-
 static void
 rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
 {
@@ -56,13 +38,15 @@ static void
 rb_class_clear_method_cache(VALUE klass)
 {
   if (RCLASS_MC_TBL(klass) != NULL) {
-    memset(RCLASS_MC_TBL(klass)->table, 0, RCLASS_MC_TBL(klass)->size_factor * METHOD_CACHE_TABLE_BASE_SIZE * sizeof(rb_method_entry_t));
+    RCLASS_SEQ(klass) = GET_VM_STATE_VERSION();
   }
 }
 
 void
 rb_clear_cache_by_class(VALUE klass)
 {
+  INC_VM_STATE_VERSION();
+
   if (klass && klass != Qundef) {
     rb_class_clear_method_cache(klass);
     rb_class_descendents_each(klass, &rb_class_clear_method_cache);
@@ -441,7 +425,7 @@ rb_method_entry_get_without_cache(VALUE klass, ID id)
     if (ruby_running) {
 	method_cache_entry_t *ent;
 	ent = method_cache_entry_get(klass, id);
-	ent->filled_version = GET_VM_STATE_VERSION();
+	ent->seq = RCLASS_SEQ(klass);
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
@@ -477,7 +461,7 @@ rb_method_entry(VALUE klass, ID id)
     method_cache_entry_t *ent;
     ent = method_cache_entry_get(klass, id);
 
-    if (ent->filled_version == GET_VM_STATE_VERSION() &&
+    if (ent->seq == RCLASS_SEQ(klass) &&
 	ent->mid == id) {
 	cache_stats.hits++;
 	return (rb_method_entry_t *)ent->me;
@@ -519,7 +503,7 @@ remove_method(VALUE klass, ID mid)
     st_delete(RCLASS_M_TBL(klass), &key, &data);
 
     rb_vm_check_redefinition_opt_method(me);
-    rb_clear_cache_for_undef(klass, mid);
+    rb_clear_cache_by_class(klass);
     rb_unlink_method_entry(me);
 
     CALL_METHOD_HOOK(klass, removed, mid);

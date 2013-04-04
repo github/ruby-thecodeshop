@@ -28,6 +28,7 @@
 #include "method.h"
 #include "constant.h"
 #include "vm_core.h"
+#include "vm_insnhelper.h"
 #include "internal.h"
 #include <ctype.h>
 
@@ -139,6 +140,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_PARENT_SUBCLASSES(obj) = NULL;
+    RCLASS_SEQ(obj) = GET_VM_STATE_VERSION();
 
     return (VALUE)obj;
 }

@@ -60,12 +60,6 @@ void vm_analysis_insn(int insn);
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
 
-void
-rb_vm_change_state(void)
-{
-    INC_VM_STATE_VERSION();
-}
-
 static void vm_clear_global_method_cache(void);
 
 static void
