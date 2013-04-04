@@ -40,33 +40,69 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   subclass_entry_t *entry;
   subclass_entry_t *newentry;
 
-  if (RCLASS_SUBCLASSES(super) != NULL) {
-    entry = RCLASS_SUBCLASSES(super);
-    if (entry->klass == klass) {
-      return 0;
+  if (super && super != Qundef) {
+    if (RCLASS_SUBCLASSES(super) != NULL) {
+      entry = RCLASS_SUBCLASSES(super);
+      if (entry->klass == klass) {
+	return 0;
+      } else {
+	while(entry->next != NULL)
+	{
+	  entry = entry->next;
+	  if (entry->klass == klass)
+	    return 0;
+	}
+      }
+    }
+
+    newentry = calloc(1, sizeof(subclass_entry_t));
+    newentry->klass = klass;
+
+    if (entry == NULL) {
+      RCLASS_SUBCLASSES(super) = newentry;
+      RCLASS_PARENT_SUBCLASSES(klass) = &(RCLASS_SUBCLASSES(super));
     } else {
-      while(entry->next != NULL)
-      {
-	entry = entry->next;
-	if (entry->klass == klass)
-	  return 0;
+      entry->next = newentry;
+      RCLASS_PARENT_SUBCLASSES(klass) = &(entry->next);
+    }
+
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+VALUE
+rb_class_set_superclass(VALUE klass, VALUE super)
+{
+  if (RCLASS_SUPER(klass) && RCLASS_SUPER(klass) != Qundef) {
+    if (RCLASS_PARENT_SUBCLASSES(klass) != NULL) {
+      subclass_entry_t *entry = *RCLASS_PARENT_SUBCLASSES(klass);
+      if (entry) {
+	*RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
+	free(entry);
       }
     }
   }
 
-  newentry = xmalloc(sizeof(subclass_entry_t));
-  newentry->klass = klass;
-  newentry->next = NULL;
+  rb_class_subclass_add(super, klass);
+  RCLASS_SUPER(klass) = super;
 
-  if (entry == NULL) {
-    RCLASS_SUBCLASSES(super) = newentry;
-    RCLASS_PARENT_SUBCLASSES(klass) = &RCLASS_SUBCLASSES(super);
-  } else {
-    entry->next = newentry;
-    RCLASS_PARENT_SUBCLASSES(klass) = &entry->next;
+  return super;
+}
+
+void
+rb_class_free_subclass_list(VALUE klass)
+{
+  subclass_entry_t *entry;
+  subclass_entry_t *lastentry;
+
+  entry = RCLASS_SUBCLASSES(klass);
+  while(entry != NULL) {
+    lastentry = entry;
+    entry = entry->next;
+    free(lastentry);
   }
-
-  return 1;
 }
 
 /**
@@ -94,6 +130,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_SUPER(obj) = 0;
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
+    RCLASS_PARENT_SUBCLASSES(obj) = NULL;
 
     return (VALUE)obj;
 }
@@ -113,12 +150,10 @@ rb_class_boot(VALUE super)
 {
     VALUE klass = class_alloc(T_CLASS, rb_cClass);
 
-    RCLASS_SUPER(klass) = super;
+    rb_class_set_superclass(klass, super);
     RCLASS_M_TBL(klass) = st_init_numtable();
 
-    if (super > 6) {
-      rb_class_subclass_add(super, klass);
-    }
+    rb_class_subclass_add(super, klass);
 
     OBJ_INFECT(klass, super);
     return (VALUE)klass;
@@ -209,7 +244,7 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	RBASIC(clone)->klass = rb_singleton_class_clone(orig);
 	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
     }
-    RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
+    rb_class_set_superclass(clone, RCLASS_SUPER(orig));
     if (RCLASS_IV_TBL(orig)) {
 	st_data_t id;
 
@@ -279,7 +314,7 @@ rb_singleton_class_clone(VALUE obj)
 	    RBASIC(clone)->klass = rb_singleton_class_clone(klass);
 	}
 
-	RCLASS_SUPER(clone) = RCLASS_SUPER(klass);
+	rb_class_set_superclass(clone, RCLASS_SUPER(klass));
 	if (RCLASS_IV_TBL(klass)) {
 	    RCLASS_IV_TBL(clone) = st_copy(RCLASS_IV_TBL(klass));
 	}
@@ -365,7 +400,7 @@ make_metaclass(VALUE klass)
 
     super = RCLASS_SUPER(klass);
     while (RB_TYPE_P(super, T_ICLASS)) super = RCLASS_SUPER(super);
-    RCLASS_SUPER(metaclass) = super ? ENSURE_EIGENCLASS(super) : rb_cClass;
+    rb_class_set_superclass(metaclass, super ? ENSURE_EIGENCLASS(super) : rb_cClass);
 
     OBJ_INFECT(metaclass, RCLASS_SUPER(metaclass));
 
@@ -685,7 +720,7 @@ include_class_new(VALUE module, VALUE super)
     RCLASS_IV_TBL(klass) = RCLASS_IV_TBL(module);
     RCLASS_CONST_TBL(klass) = RCLASS_CONST_TBL(module);
     RCLASS_M_TBL(klass) = RCLASS_M_TBL(module);
-    RCLASS_SUPER(klass) = super;
+    rb_class_set_superclass(klass, super);
     if (TYPE(module) == T_ICLASS) {
 	RBASIC(klass)->klass = RBASIC(module)->klass;
     }
@@ -736,7 +771,7 @@ rb_include_module(VALUE klass, VALUE module)
 		break;
 	    }
 	}
-	c = RCLASS_SUPER(c) = include_class_new(module, RCLASS_SUPER(c));
+	c = rb_class_set_superclass(c, include_class_new(module, RCLASS_SUPER(c)));
 	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries)
 	    changed = 1;
       skip:

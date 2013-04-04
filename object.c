@@ -1559,7 +1559,7 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
-    RCLASS_SUPER(klass) = super;
+    rb_class_set_superclass(klass, super);
     rb_make_metaclass(klass, RBASIC(super)->klass);
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
