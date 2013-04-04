@@ -38,10 +38,35 @@ rb_clear_cache_by_id(ID id)
     rb_vm_change_state();
 }
 
+static void
+rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
+{
+  subclass_entry_t *ent;
+
+  if (RCLASS_SUBCLASSES(klass) != NULL) {
+    ent = RCLASS_SUBCLASSES(klass);
+    do {
+      iter(ent->klass);
+      rb_class_descendents_each(ent->klass, iter);
+    } while((ent = ent->next) != NULL);
+  }
+}
+
+static void
+rb_class_clear_method_cache(VALUE klass)
+{
+  if (RCLASS_MC_TBL(klass) != NULL) {
+    memset(RCLASS_MC_TBL(klass)->table, 0, RCLASS_MC_TBL(klass)->size_factor * METHOD_CACHE_TABLE_BASE_SIZE * sizeof(rb_method_entry_t));
+  }
+}
+
 void
 rb_clear_cache_by_class(VALUE klass)
 {
-    rb_vm_change_state();
+  if (klass && klass != Qundef) {
+    rb_class_clear_method_cache(klass);
+    rb_class_descendents_each(klass, &rb_class_clear_method_cache);
+  }
 }
 
 VALUE
@@ -212,7 +237,7 @@ rb_method_entry_make(VALUE klass, ID mid, rb_method_type_t type,
 
     me = ALLOC(rb_method_entry_t);
 
-    rb_clear_cache_by_id(mid);
+    rb_clear_cache_by_class(klass);
 
     me->flag = NOEX_WITH_SAFE(noex);
     me->mark = 0;

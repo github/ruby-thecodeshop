@@ -974,7 +974,7 @@ defineclass
 		  class_iseq->local_size);
     RESTORE_REGS();
 
-    INC_VM_STATE_VERSION();
+    rb_clear_cache_by_class(klass);
     NEXT_INSN();
 }
 

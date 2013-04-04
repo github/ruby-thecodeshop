@@ -1910,7 +1910,7 @@ rb_const_set(VALUE klass, ID id, VALUE val)
 	}
     }
 
-    rb_vm_change_state();
+    rb_clear_cache_by_class(klass);
 
     ce = ALLOC(rb_const_entry_t);
     ce->flag = (rb_const_flag_t)visibility;

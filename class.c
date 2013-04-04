@@ -785,7 +785,7 @@ rb_include_module(VALUE klass, VALUE module)
       skip:
 	module = RCLASS_SUPER(module);
     }
-    if (changed) rb_clear_cache();
+    if (changed) rb_clear_cache_by_class(klass);
 }
 
 /*

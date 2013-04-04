@@ -171,6 +171,8 @@ void rb_check_inheritable(VALUE);
 VALUE rb_class_inherited(VALUE, VALUE);
 VALUE rb_define_class_id(ID, VALUE);
 VALUE rb_define_class_id_under(VALUE, ID, VALUE);
+static void rb_class_clear_method_cache(VALUE);
+static void rb_class_descendents_each(VALUE klass, void (*iter)(VALUE));
 VALUE rb_module_new(void);
 VALUE rb_define_module_id(ID);
 VALUE rb_define_module_id_under(VALUE, ID);
