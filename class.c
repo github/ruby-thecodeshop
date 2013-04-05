@@ -38,39 +38,27 @@ static ID id_attached;
 static unsigned
 rb_class_subclass_add(VALUE super, VALUE klass)
 {
+  subclass_entry_t *tail;
   subclass_entry_t *entry;
-  subclass_entry_t *newentry;
 
   if (super && super != Qundef) {
-    if (RCLASS_SUBCLASSES(super) != NULL) {
-      entry = RCLASS_SUBCLASSES(super);
-      if (entry->klass == klass) {
-	return 0;
-      } else {
-	while(entry->next != NULL)
-	{
-	  entry = entry->next;
-	  if (entry->klass == klass)
-	    return 0;
-	}
-      }
-    }
+    entry = calloc(1, sizeof(subclass_entry_t));
+    entry->klass = klass;
+    RCLASS(klass)->parent_subclasses = &entry->next;
 
-    newentry = calloc(1, sizeof(subclass_entry_t));
-    newentry->klass = klass;
+    tail = RCLASS(super)->subclasses;
 
-    if (entry == NULL) {
-      RCLASS_SUBCLASSES(super) = newentry;
-      RCLASS_PARENT_SUBCLASSES(klass) = &(RCLASS_SUBCLASSES(super));
+    if (tail == NULL) {
+      RCLASS(super)->subclasses = entry;
     } else {
-      entry->next = newentry;
-      RCLASS_PARENT_SUBCLASSES(klass) = &(entry->next);
+      while(tail->next != NULL) {
+	tail = tail->next;
+      }
+      tail->next = entry;
     }
-
-    return 1;
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 inline void
