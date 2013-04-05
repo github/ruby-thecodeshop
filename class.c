@@ -76,16 +76,17 @@ rb_class_subclass_add(VALUE super, VALUE klass)
 inline void
 rb_class_detach_from_superclass_subclass_list(VALUE klass)
 {
-  if (RCLASS_SUPER(klass) && RCLASS_SUPER(klass) != Qundef) {
-    if (RCLASS_PARENT_SUBCLASSES(klass) != NULL) {
-      subclass_entry_t *entry = *RCLASS_PARENT_SUBCLASSES(klass);
-      if (entry) {
-	*RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
-	//free(entry); TODO: why does this segfault?
-      } else {
-	*RCLASS_PARENT_SUBCLASSES(klass) = NULL;
-      }
+  if (RCLASS_PARENT_SUBCLASSES(klass) != NULL) {
+    subclass_entry_t *entry = *RCLASS_PARENT_SUBCLASSES(klass);
+
+    if (entry) {
+      *RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
+      //free(entry); TODO: why does this segfault?
+    } else {
+      *RCLASS_PARENT_SUBCLASSES(klass) = NULL;
     }
+
+    RCLASS_PARENT_SUBCLASSES(klass) = NULL;
   }
 }
 
@@ -108,6 +109,8 @@ rb_class_free_subclass_list(VALUE klass)
 
   entry = RCLASS_SUBCLASSES(klass);
   while(entry != NULL) {
+    rb_class_detach_from_superclass_subclass_list(entry->klass);
+    rb_class_free_subclass_list(entry->klass);
     lastentry = entry;
     entry = entry->next;
     free(lastentry);

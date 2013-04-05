@@ -60,8 +60,6 @@ void vm_analysis_insn(int insn);
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
 
-static void vm_clear_global_method_cache(void);
-
 static void
 vm_clear_all_inline_method_cache(void)
 {
@@ -74,7 +72,6 @@ vm_clear_all_inline_method_cache(void)
 static void
 vm_clear_all_cache()
 {
-    vm_clear_global_method_cache();
     vm_clear_all_inline_method_cache();
     ruby_vm_global_state_version = 1;
 }
@@ -1997,7 +1994,8 @@ m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
 {
     REWIND_CFP({
 	rb_undef(cbase, SYM2ID(sym));
-	INC_VM_STATE_VERSION();
+        rb_class_clear_method_cache(cbase);
+        rb_class_clear_method_cache(self);
     });
     return Qnil;
 }

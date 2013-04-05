@@ -4,6 +4,7 @@
 
 #include "timing.c"
 #include "ruby/intern.h"
+#include "method.h"
 
 static void rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me);
 
@@ -13,12 +14,6 @@ static ID added, singleton_added, attached;
 
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
-
-static void
-vm_clear_global_method_cache(void)
-{
-  // TODO
-}
 
 static void
 rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
@@ -37,16 +32,14 @@ rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
 static void
 rb_class_clear_method_cache(VALUE klass)
 {
-  if (RCLASS_MC_TBL(klass) != NULL) {
-    RCLASS_SEQ(klass) = GET_VM_STATE_VERSION();
-  }
+  INC_VM_STATE_VERSION();
+
+  RCLASS_SEQ(klass) = GET_VM_STATE_VERSION();
 }
 
 void
 rb_clear_cache_by_class(VALUE klass)
 {
-  INC_VM_STATE_VERSION();
-
   if (klass && klass != Qundef) {
     rb_class_clear_method_cache(klass);
     rb_class_descendents_each(klass, &rb_class_clear_method_cache);
@@ -135,6 +128,10 @@ void
 rb_free_method_entry(rb_method_entry_t *me)
 {
     rb_method_definition_t *def = me->def;
+    
+    //fprintf(stderr, "freeing method entry: %p\n", me);
+
+    rb_clear_cache_by_class(me->klass);
 
     if (def) {
 	if (def->alias_count == 0) {
@@ -143,7 +140,7 @@ rb_free_method_entry(rb_method_entry_t *me)
 	else if (def->alias_count > 0) {
 	    def->alias_count--;
 	}
-	me->def = 0;
+	me->def = NULL;
     }
     xfree(me);
 }
@@ -260,6 +257,7 @@ rb_method_entry_make(VALUE klass, ID mid, rb_method_type_t type,
 static void
 method_added(VALUE klass, ID mid)
 {
+    rb_clear_cache_by_class(klass);
     if (mid != ID_ALLOCATOR && ruby_running) {
 	CALL_METHOD_HOOK(klass, added, mid);
     }
@@ -313,6 +311,8 @@ rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *opts, rb_method_
     }
     if (type != VM_METHOD_TYPE_UNDEF) {
 	method_added(klass, mid);
+    } else {
+        rb_clear_cache_by_class(klass);
     }
     return me;
 }
@@ -464,6 +464,8 @@ rb_method_entry(VALUE klass, ID id)
     if (ent->seq == RCLASS_SEQ(klass) &&
 	ent->mid == id) {
 	cache_stats.hits++;
+        me = (rb_method_entry_t *)ent->me;
+        //fprintf(stderr, "hit: %s %s %p\n", rb_class2name(klass), rb_id2name(id), ent->me);
 	return (rb_method_entry_t *)ent->me;
     }
 
