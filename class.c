@@ -101,7 +101,7 @@ rb_class_free_subclass_list(VALUE klass)
     rb_class_detach_from_superclass_subclass_list(entry->klass);
     lastentry = entry;
     entry = entry->next;
-    free(lastentry);
+    //free(lastentry); TODO: why does this segfault?
   }
 }
 
