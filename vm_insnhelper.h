@@ -215,11 +215,14 @@ typedef struct {
   double miss_start;
   double miss_time;
 
+  double inval_start;
+  double inval_time;
+
   VALUE invalidation_log;
 } cache_stats_t;
 
 static void method_cache_log_backtrace(void);
-static cache_stats_t cache_stats = {0,0,0,0,Qnil};
+static cache_stats_t cache_stats = {0,0,0,0,0,0,Qnil};
 
 static VALUE ruby_vm_global_state_version = 1;
 

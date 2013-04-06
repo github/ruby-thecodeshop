@@ -41,8 +41,13 @@ void
 rb_clear_cache_by_class(VALUE klass)
 {
   if (klass && klass != Qundef) {
+    cache_stats.inval_start = getrusage_time();
+
     rb_class_clear_method_cache(klass);
     rb_class_descendents_each(klass, &rb_class_clear_method_cache);
+
+    cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;
+    cache_stats.inval_start = 0;
   }
 }
 
