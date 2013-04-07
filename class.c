@@ -44,6 +44,7 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   if (super && super != Qundef) {
     entry = calloc(1, sizeof(subclass_entry_t));
     entry->klass = klass;
+    // TODO: this should point to ITS entry, not the next one, likke the module list add.
     RCLASS(klass)->parent_subclasses = &entry->next;
 
     tail = RCLASS(super)->subclasses;
@@ -102,6 +103,28 @@ rb_class_free_subclass_list(VALUE klass)
     lastentry = entry;
     entry = entry->next;
     //free(lastentry); TODO: why does this segfault?
+  }
+}
+
+static void
+rb_module_add_to_subclasses_list(VALUE module, VALUE klass, VALUE iclass)
+{
+  subclass_entry_t *tail, *entry;
+
+  entry = calloc(1, sizeof(subclass_entry_t));
+  entry->klass = klass;
+
+  tail = RCLASS(module)->subclasses;
+
+  if (tail == NULL) {
+    RCLASS(module)->subclasses = entry;
+    RCLASS(iclass)->module_subclasses = &RCLASS(module)->subclasses;
+  } else {
+    while(tail->next != NULL) {
+      tail = tail->next;
+    }
+    tail->next = entry;
+    RCLASS(iclass)->module_subclasses = &tail->next;
   }
 }
 
@@ -737,7 +760,7 @@ include_class_new(VALUE module, VALUE super)
 void
 rb_include_module(VALUE klass, VALUE module)
 {
-    VALUE p, c;
+    VALUE p, c, iclass;
     int changed = 0;
 
     rb_frozen_class_p(klass);
@@ -772,7 +795,11 @@ rb_include_module(VALUE klass, VALUE module)
 		break;
 	    }
 	}
-	c = rb_class_set_superclass(c, include_class_new(module, RCLASS_SUPER(c)));
+	iclass = include_class_new(module, RCLASS_SUPER(c));
+	c = rb_class_set_superclass(c, iclass);
+
+	rb_module_add_to_subclasses_list(module, klass, iclass);
+
 	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries)
 	    changed = 1;
       skip:
