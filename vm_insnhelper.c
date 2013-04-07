@@ -1366,17 +1366,27 @@ vm_setivar(VALUE obj, ID id, VALUE val, IC ic)
 #endif
 }
 
-static inline const rb_method_entry_t *
+  static inline const rb_method_entry_t *
 vm_method_search(VALUE id, VALUE klass, IC ic)
 {
-    rb_method_entry_t *me;
+  rb_method_entry_t *me;
 #if OPT_INLINE_METHOD_CACHE
-	me = rb_method_entry(klass, id);
+  if (LIKELY(klass == ic->ic_class &&
+	ic->ic_vmstat == GET_VM_STATE_VERSION() &&
+	RCLASS_SEQ(klass) == ic->ic_seq)) {
+    me = ic->ic_value.method;
+  } else {
+    me = rb_method_entry(klass, id);
+    ic->ic_class = klass;
+    ic->ic_value.method = me;
+    ic->ic_seq = RCLASS_SEQ(klass);
+    ic->ic_vmstat = GET_VM_STATE_VERSION();
+  }
 #else
     me = rb_method_entry(klass, id);
 #endif
     return me;
-}
+  }
 
 static inline VALUE
 vm_search_normal_superclass(VALUE klass, VALUE recv)

@@ -131,7 +131,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_PARENT_SUBCLASSES(obj) = NULL;
-    RCLASS_SEQ(obj) = GET_VM_STATE_VERSION();
+    RCLASS_SEQ(obj) = NEXT_SEQ();
 
     return (VALUE)obj;
 }

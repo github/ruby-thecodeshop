@@ -127,6 +127,7 @@ typedef struct rb_compile_option_struct rb_compile_option_t;
 
 struct iseq_inline_cache_entry {
     VALUE ic_vmstat;
+    VALUE ic_seq;
     VALUE ic_class;
     union {
 	VALUE value;

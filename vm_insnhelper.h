@@ -225,7 +225,9 @@ static void method_cache_log_backtrace(void);
 static cache_stats_t cache_stats = {0,0,0,0,0,0,Qnil};
 
 static VALUE ruby_vm_global_state_version = 1;
+static VALUE ruby_vm_sequence = 1;
 
+#define NEXT_SEQ() (++ruby_vm_sequence)
 #define GET_VM_STATE_VERSION() (ruby_vm_global_state_version)
 #define INC_VM_STATE_VERSION() do { \
     ruby_vm_global_state_version = (ruby_vm_global_state_version + 1); \

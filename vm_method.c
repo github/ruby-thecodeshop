@@ -32,9 +32,7 @@ rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
 static void
 rb_class_clear_method_cache(VALUE klass)
 {
-  INC_VM_STATE_VERSION();
-
-  RCLASS_SEQ(klass) = GET_VM_STATE_VERSION();
+  RCLASS_SEQ(klass) = NEXT_SEQ();
 }
 
 void
@@ -43,8 +41,12 @@ rb_clear_cache_by_class(VALUE klass)
   if (klass && klass != Qundef) {
     cache_stats.inval_start = getrusage_time();
 
-    rb_class_clear_method_cache(klass);
-    rb_class_descendents_each(klass, &rb_class_clear_method_cache);
+    if (klass == rb_cObject) {
+      INC_VM_STATE_VERSION();
+    } else {
+      rb_class_clear_method_cache(klass);
+      rb_class_descendents_each(klass, &rb_class_clear_method_cache);
+    }
 
     cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;
     cache_stats.inval_start = 0;
@@ -262,10 +264,10 @@ rb_method_entry_make(VALUE klass, ID mid, rb_method_type_t type,
 static void
 method_added(VALUE klass, ID mid)
 {
-    rb_clear_cache_by_class(klass);
     if (mid != ID_ALLOCATOR && ruby_running) {
 	CALL_METHOD_HOOK(klass, added, mid);
     }
+    rb_clear_cache_by_class(klass);
 }
 
 rb_method_entry_t *
@@ -431,13 +433,13 @@ rb_method_entry_get_without_cache(VALUE klass, ID id)
 	method_cache_entry_t *ent;
 	ent = method_cache_entry_get(klass, id);
 	ent->seq = RCLASS_SEQ(klass);
+	ent->vm_state = GET_VM_STATE_VERSION();
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
 	    ent->me = 0;
 	    me = 0;
-	}
-	else {
+	} else {
 	    ent->mid = id;
 	    ent->me = (struct rb_method_entry*)me;
 	}
@@ -467,6 +469,7 @@ rb_method_entry(VALUE klass, ID id)
     ent = method_cache_entry_get(klass, id);
 
     if (ent->seq == RCLASS_SEQ(klass) &&
+	ent->vm_state == GET_VM_STATE_VERSION() &&
 	ent->mid == id) {
 	cache_stats.hits++;
         me = (rb_method_entry_t *)ent->me;
@@ -510,10 +513,11 @@ remove_method(VALUE klass, ID mid)
     st_delete(RCLASS_M_TBL(klass), &key, &data);
 
     rb_vm_check_redefinition_opt_method(me);
-    rb_clear_cache_by_class(klass);
     rb_unlink_method_entry(me);
 
     CALL_METHOD_HOOK(klass, removed, mid);
+
+    rb_clear_cache_by_class(klass);
 }
 
 void
@@ -975,6 +979,7 @@ rb_alias(VALUE klass, ID name, ID def)
 
     if (flag == NOEX_UNDEF) flag = orig_me->flag;
     rb_method_entry_set(target_klass, name, orig_me, flag);
+    rb_clear_cache_by_class(target_klass);
 }
 
 /*

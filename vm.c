@@ -1994,8 +1994,8 @@ m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
 {
     REWIND_CFP({
 	rb_undef(cbase, SYM2ID(sym));
-        rb_class_clear_method_cache(cbase);
-        rb_class_clear_method_cache(self);
+        rb_clear_cache_by_class(cbase);
+        rb_clear_cache_by_class(self);
     });
     return Qnil;
 }

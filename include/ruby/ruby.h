@@ -632,6 +632,7 @@ typedef struct rb_classext_struct rb_classext_t;
 struct rb_method_entry;
 
 typedef struct method_cache_entry {
+  VALUE vm_state;
   VALUE seq;
   ID mid;
   struct rb_method_entry *me;
