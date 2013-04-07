@@ -41,7 +41,7 @@ rb_clear_cache_by_class(VALUE klass)
   if (klass && klass != Qundef) {
     cache_stats.inval_start = getrusage_time();
 
-    if (klass == rb_cObject) {
+    if (klass == rb_cObject || klass == rb_mKernel) {
       INC_VM_STATE_VERSION();
     } else {
       rb_class_clear_method_cache(klass);
@@ -979,6 +979,7 @@ rb_alias(VALUE klass, ID name, ID def)
 
     if (flag == NOEX_UNDEF) flag = orig_me->flag;
     rb_method_entry_set(target_klass, name, orig_me, flag);
+    //fprintf(stderr, "alias from %s %s to target %s %s\n", rb_class2name(klass), rb_id2name(def), rb_class2name(target_klass), rb_id2name(name));
     rb_clear_cache_by_class(target_klass);
 }
 
