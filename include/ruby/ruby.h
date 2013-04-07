@@ -627,8 +627,6 @@ struct RObject {
 /** @internal */
 typedef struct rb_classext_struct rb_classext_t;
 
-#define METHOD_CACHE_TABLE_BASE_SIZE 50
-
 struct rb_method_entry;
 
 typedef struct method_cache_entry {
@@ -638,11 +636,6 @@ typedef struct method_cache_entry {
   struct rb_method_entry *me;
   struct method_cache_entry *next;
 } method_cache_entry_t;
-
-typedef struct {
-  unsigned int size_factor;
-  method_cache_entry_t *table;
-} method_cache_t;
 
 struct subclass_entry;
 typedef struct subclass_entry subclass_entry_t;
@@ -666,8 +659,8 @@ struct RClass {
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
+    struct st_table *mc_tbl;
     VALUE seq;
-    method_cache_t *mc_tbl;
     subclass_entry_t *subclasses;
     subclass_entry_t **parent_subclasses;
     subclass_entry_t **module_subclasses;

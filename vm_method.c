@@ -381,43 +381,6 @@ search_method(VALUE klass, ID id)
     return (rb_method_entry_t *)body;
 }
 
-inline method_cache_entry_t *
-method_cache_entry(method_cache_t *tbl, ID id)
-{
-  return tbl->table + (id % (tbl->size_factor * METHOD_CACHE_TABLE_BASE_SIZE));
-}
-
-void
-method_cache_table_resize(VALUE klass)
-{
-  method_cache_t *tbl = RCLASS_MC_TBL(klass);
-  free(tbl->table);
-  tbl->size_factor = tbl->size_factor * 2;
-  tbl->table = calloc(METHOD_CACHE_TABLE_BASE_SIZE * tbl->size_factor, sizeof(method_cache_entry_t));
-}
-
-method_cache_entry_t *
-method_cache_entry_get(VALUE klass, ID id)
-{
-  method_cache_t *tbl;
-  method_cache_entry_t *ent;
-
-  if (RCLASS_MC_TBL(klass) == NULL) {
-    RCLASS_MC_TBL(klass) = malloc(sizeof(method_cache_t));
-    RCLASS_MC_TBL(klass)->table = calloc(METHOD_CACHE_TABLE_BASE_SIZE, sizeof(method_cache_entry_t));
-    RCLASS_MC_TBL(klass)->size_factor = 1;
-  }
-  tbl = RCLASS_MC_TBL(klass);
-
-  ent = method_cache_entry(tbl, id);
-  if (ent->mid != id && ent->mid != 0) {
-    method_cache_table_resize(klass);
-    ent = method_cache_entry(tbl, id);
-  }
-
-  return ent;
-}
-
 /*
  * search method entry without the method cache.
  *
@@ -425,13 +388,11 @@ method_cache_entry_get(VALUE klass, ID id)
  * rb_method_entry() simply.
  */
 rb_method_entry_t *
-rb_method_entry_get_without_cache(VALUE klass, ID id)
+rb_method_entry_get_without_cache(VALUE klass, ID id, method_cache_entry_t *ent)
 {
     rb_method_entry_t *me = search_method(klass, id);
 
     if (ruby_running) {
-	method_cache_entry_t *ent;
-	ent = method_cache_entry_get(klass, id);
 	ent->seq = RCLASS_SEQ(klass);
 	ent->vm_state = GET_VM_STATE_VERSION();
 
@@ -466,21 +427,31 @@ rb_method_entry(VALUE klass, ID id)
 {
     rb_method_entry_t *me;
     method_cache_entry_t *ent;
-    ent = method_cache_entry_get(klass, id);
+    st_data_t body;
+
+    if (RCLASS_MC_TBL(klass) == NULL) {
+	RCLASS_MC_TBL(klass) = st_init_numtable();
+    }
+
+    if (st_lookup(RCLASS_MC_TBL(klass), id, &body)) {
+	ent = (method_cache_entry_t *)body;
+    } else {
+	ent = calloc(1, sizeof(method_cache_entry_t));
+	st_insert(RCLASS_MC_TBL(klass), id, (st_data_t) ent);
+    }
 
     if (ent->seq == RCLASS_SEQ(klass) &&
 	ent->vm_state == GET_VM_STATE_VERSION() &&
 	ent->mid == id) {
 	cache_stats.hits++;
         me = (rb_method_entry_t *)ent->me;
-        //fprintf(stderr, "hit: %s %s %p\n", rb_class2name(klass), rb_id2name(id), ent->me);
 	return (rb_method_entry_t *)ent->me;
     }
 
     cache_stats.misses++;
 
     start_time_method_cache_miss();
-    me = rb_method_entry_get_without_cache(klass, id);
+    me = rb_method_entry_get_without_cache(klass, id, ent);
     end_time_method_cache_miss();
 
     return me;

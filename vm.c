@@ -2144,7 +2144,7 @@ Init_VM(void)
 
     rb_mMethodCache = rb_define_module_under(rb_cRubyVM, "MethodCache");
 
-    rb_define_singleton_method(rb_mMethodCache, "invalidations", rbvm_global_state_version, 0);
+    rb_define_singleton_method(rb_mMethodCache, "global_invalidations", rbvm_global_state_version, 0);
 
     rb_define_singleton_method(rb_mMethodCache, "hits", rbvm_method_cache_hits, 0);
     rb_define_singleton_method(rb_mMethodCache, "misses", rbvm_method_cache_misses, 0);
