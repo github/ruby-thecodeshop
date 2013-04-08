@@ -98,15 +98,14 @@ void
 rb_class_free_subclass_list(VALUE klass)
 {
   subclass_entry_t *entry;
-  subclass_entry_t *lastentry;
+  VALUE curklass;
 
   entry = RCLASS_SUBCLASSES(klass);
   while(entry != NULL) {
-    rb_class_free_subclass_list(entry->klass);
-    rb_class_detach_from_superclass_subclass_list(entry->klass);
-    lastentry = entry;
+    curklass = entry->klass;
     entry = entry->next;
-    //free(lastentry); TODO: why does this segfault?
+    rb_class_free_subclass_list(curklass);
+    rb_class_detach_from_superclass_subclass_list(curklass);
   }
 }
 
