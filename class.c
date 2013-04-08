@@ -44,18 +44,19 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   if (super && super != Qundef) {
     entry = calloc(1, sizeof(subclass_entry_t));
     entry->klass = klass;
-    // TODO: this should point to ITS entry, not the next one, likke the module list add.
-    RCLASS(klass)->parent_subclasses = &entry->next;
 
     tail = RCLASS(super)->subclasses;
 
+    // TODO: always append to the head of the list.
     if (tail == NULL) {
       RCLASS(super)->subclasses = entry;
+      RCLASS(klass)->parent_subclasses = &RCLASS(super)->subclasses;
     } else {
       while(tail->next != NULL) {
 	tail = tail->next;
       }
       tail->next = entry;
+      RCLASS(klass)->parent_subclasses = &tail->next;
     }
   }
 
@@ -70,7 +71,10 @@ rb_class_detach_from_superclass_subclass_list(VALUE klass)
 
     if (entry) {
       *RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
-      //free(entry); TODO: why does this segfault?
+      if (entry->next) {
+	RCLASS_PARENT_SUBCLASSES(entry->next->klass) = RCLASS_PARENT_SUBCLASSES(klass);
+      }
+      free(entry);
     } else {
       *RCLASS_PARENT_SUBCLASSES(klass) = NULL;
     }
