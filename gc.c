@@ -2491,8 +2491,8 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
         if (RCLASS_SUBCLASSES(obj) != NULL) {
             rb_class_free_subclass_list(obj);
         }
-	if (RCLASS(obj)->iclasstarget) {
-	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS(obj)->iclasstarget);
+	if (RCLASS(obj)->subclasses) {
+	  st_free_table(RCLASS(obj)->subclasses);
 	}
         rb_class_remove_from_super_subclasses(obj);
         xfree(RANY(obj)->as.klass.ptr);
@@ -2547,6 +2547,13 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	break;
       case T_ICLASS:
 	/* iClass shares table with the module */
+        if (RCLASS_SUBCLASSES(obj) != NULL) {
+            rb_class_free_subclass_list(obj);
+        }
+	if (RCLASS(obj)->iclasstarget) {
+	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS(obj)->iclasstarget);
+	}
+        rb_class_remove_from_super_subclasses(obj);
 	xfree(RANY(obj)->as.klass.ptr);
 	break;
 
