@@ -662,6 +662,7 @@ struct RClass {
     struct st_table *mc_tbl;
     struct st_table *subclasses;
     VALUE seq;
+    VALUE iclasstarget;
 };
 
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)

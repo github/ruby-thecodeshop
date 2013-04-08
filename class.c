@@ -50,12 +50,18 @@ rb_class_subclass_add(VALUE super, VALUE klass)
 }
 
 inline void
-rb_class_detach_from_superclass_subclass_list(VALUE klass)
+rb_class_remove_from_super_subclasses(VALUE klass)
+{
+  rb_class_remove_from_super_subclasses2(RBASIC(klass)->klass, klass);
+}
+
+inline void
+rb_class_remove_from_super_subclasses2(VALUE super, VALUE klass)
 {
   struct st_table *tbl;
 
-  if (RCLASS(klass)->basic.klass) {
-    tbl = RCLASS(RCLASS(klass)->basic.klass)->subclasses;
+  if (super) {
+    tbl = RCLASS(super)->subclasses;
     if (tbl) {
       st_delete(tbl, &klass, 0);
     }
@@ -85,7 +91,7 @@ rb_class_foreach_subclass(VALUE klass, int (*f)(VALUE))
 VALUE
 rb_class_set_superclass(VALUE klass, VALUE super)
 {
-  rb_class_detach_from_superclass_subclass_list(klass);
+  rb_class_remove_from_super_subclasses(klass);
 
   rb_class_subclass_add(super, klass);
   RCLASS_SUPER(klass) = super;
@@ -138,6 +144,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_SEQ(obj) = NEXT_SEQ();
+    RCLASS(obj)->iclasstarget = 0;
 
     return (VALUE)obj;
 }
@@ -734,6 +741,7 @@ include_class_new(VALUE module, VALUE super)
     else {
 	RBASIC(klass)->klass = module;
     }
+
     OBJ_INFECT(klass, module);
     OBJ_INFECT(klass, super);
 
@@ -779,6 +787,8 @@ rb_include_module(VALUE klass, VALUE module)
 	    }
 	}
 	iclass = include_class_new(module, RCLASS_SUPER(c));
+	RCLASS(iclass)->iclasstarget = klass;
+
 	c = rb_class_set_superclass(c, iclass);
 
 	rb_module_add_to_subclasses_list(module, klass, iclass);
