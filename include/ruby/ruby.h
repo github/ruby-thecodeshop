@@ -660,10 +660,8 @@ struct RClass {
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
     struct st_table *mc_tbl;
+    struct st_table *subclasses;
     VALUE seq;
-    subclass_entry_t *subclasses;
-    subclass_entry_t **parent_subclasses;
-    subclass_entry_t **module_subclasses;
 };
 
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)

@@ -15,24 +15,11 @@ static ID added, singleton_added, attached;
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
-static void
-rb_class_descendents_each(VALUE klass, void (*iter)(VALUE))
-{
-  subclass_entry_t *ent;
-
-  if (RCLASS_SUBCLASSES(klass) != NULL) {
-    ent = RCLASS_SUBCLASSES(klass);
-    do {
-      iter(ent->klass);
-      rb_class_descendents_each(ent->klass, iter);
-    } while((ent = ent->next) != NULL);
-  }
-}
-
-static void
+static int
 rb_class_clear_method_cache(VALUE klass)
 {
   RCLASS_SEQ(klass) = NEXT_SEQ();
+  return ST_CONTINUE;
 }
 
 void
@@ -45,7 +32,7 @@ rb_clear_cache_by_class(VALUE klass)
       INC_VM_STATE_VERSION();
     } else {
       rb_class_clear_method_cache(klass);
-      rb_class_descendents_each(klass, &rb_class_clear_method_cache);
+      rb_class_foreach_subclass(klass, &rb_class_clear_method_cache);
     }
 
     cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;

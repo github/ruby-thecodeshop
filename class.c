@@ -38,26 +38,12 @@ static ID id_attached;
 static unsigned
 rb_class_subclass_add(VALUE super, VALUE klass)
 {
-  subclass_entry_t *tail;
-  subclass_entry_t *entry;
-
   if (super && super != Qundef) {
-    entry = calloc(1, sizeof(subclass_entry_t));
-    entry->klass = klass;
-
-    tail = RCLASS(super)->subclasses;
-
-    // TODO: always append to the head of the list.
-    if (tail == NULL) {
-      RCLASS(super)->subclasses = entry;
-      RCLASS(klass)->parent_subclasses = &RCLASS(super)->subclasses;
-    } else {
-      while(tail->next != NULL) {
-	tail = tail->next;
-      }
-      tail->next = entry;
-      RCLASS(klass)->parent_subclasses = &tail->next;
+    if (RCLASS(super)->subclasses == NULL) {
+      RCLASS(super)->subclasses = st_init_numtable();
     }
+
+    st_insert(RCLASS(super)->subclasses, klass, Qtrue);
   }
 
   return 0;
@@ -66,20 +52,33 @@ rb_class_subclass_add(VALUE super, VALUE klass)
 inline void
 rb_class_detach_from_superclass_subclass_list(VALUE klass)
 {
-  if (RCLASS_PARENT_SUBCLASSES(klass) != NULL) {
-    subclass_entry_t *entry = *RCLASS_PARENT_SUBCLASSES(klass);
+  struct st_table *tbl;
 
-    if (entry) {
-      *RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
-      if (entry->next) {
-	RCLASS_PARENT_SUBCLASSES(entry->next->klass) = RCLASS_PARENT_SUBCLASSES(klass);
-      }
-      free(entry);
-    } else {
-      *RCLASS_PARENT_SUBCLASSES(klass) = NULL;
+  if (RCLASS(klass)->basic.klass) {
+    tbl = RCLASS(RCLASS(klass)->basic.klass)->subclasses;
+    if (tbl) {
+      st_delete(tbl, &klass, 0);
     }
+  }
+}
 
-    RCLASS_PARENT_SUBCLASSES(klass) = NULL;
+static int
+rb_class_foreach_iter_wrapper(st_data_t key, st_data_t unused, st_data_t rf)
+{
+  int (*f)(VALUE);
+
+  f = (int (*)(VALUE)) rf;
+  return f((VALUE)key);
+}
+
+void
+rb_class_foreach_subclass(VALUE klass, int (*f)(VALUE))
+{
+  struct st_table *tbl;
+  
+  tbl = RCLASS(klass)->subclasses;
+  if (tbl) {
+    st_foreach(tbl, *rb_class_foreach_iter_wrapper, (st_data_t)f);
   }
 }
 
@@ -94,41 +93,23 @@ rb_class_set_superclass(VALUE klass, VALUE super)
   return super;
 }
 
+static int
+rb_class_free_subclass(VALUE klass)
+{
+  rb_class_free_subclass_list(klass);
+  return ST_DELETE;
+}
+
 void
 rb_class_free_subclass_list(VALUE klass)
 {
-  subclass_entry_t *entry;
-  VALUE curklass;
-
-  entry = RCLASS_SUBCLASSES(klass);
-  while(entry != NULL) {
-    curklass = entry->klass;
-    entry = entry->next;
-    rb_class_free_subclass_list(curklass);
-    rb_class_detach_from_superclass_subclass_list(curklass);
-  }
+  rb_class_foreach_subclass(klass, *rb_class_free_subclass);
 }
 
 static void
 rb_module_add_to_subclasses_list(VALUE module, VALUE klass, VALUE iclass)
 {
-  subclass_entry_t *tail, *entry;
-
-  entry = calloc(1, sizeof(subclass_entry_t));
-  entry->klass = klass;
-
-  tail = RCLASS(module)->subclasses;
-
-  if (tail == NULL) {
-    RCLASS(module)->subclasses = entry;
-    RCLASS(iclass)->module_subclasses = &RCLASS(module)->subclasses;
-  } else {
-    while(tail->next != NULL) {
-      tail = tail->next;
-    }
-    tail->next = entry;
-    RCLASS(iclass)->module_subclasses = &tail->next;
-  }
+  rb_class_subclass_add(module, klass);
 }
 
 /**
@@ -156,7 +137,6 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_SUPER(obj) = 0;
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
-    RCLASS_PARENT_SUBCLASSES(obj) = NULL;
     RCLASS_SEQ(obj) = NEXT_SEQ();
 
     return (VALUE)obj;
