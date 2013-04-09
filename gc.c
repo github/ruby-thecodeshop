@@ -2495,6 +2495,10 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	  st_free_table(RCLASS(obj)->subclasses);
 	  RCLASS(obj)->subclasses = NULL;
 	}
+	if (RCLASS_MC_TBL(obj)) {
+	  st_free_table(RCLASS_MC_TBL(obj));
+	  RCLASS_MC_TBL(obj) = NULL;
+	}
         rb_class_remove_from_super_subclasses(obj);
         xfree(RANY(obj)->as.klass.ptr);
 	break;
