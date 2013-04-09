@@ -49,13 +49,13 @@ rb_class_subclass_add(VALUE super, VALUE klass)
   return 0;
 }
 
-inline void
+void
 rb_class_remove_from_super_subclasses(VALUE klass)
 {
   rb_class_remove_from_super_subclasses2(RBASIC(klass)->klass, klass);
 }
 
-inline void
+void
 rb_class_remove_from_super_subclasses2(VALUE super, VALUE klass)
 {
   struct st_table *tbl;
