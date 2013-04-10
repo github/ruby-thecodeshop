@@ -39,11 +39,11 @@ static unsigned
 rb_class_subclass_add(VALUE super, VALUE klass)
 {
   if (super && super != Qundef) {
-    if (RCLASS(super)->subclasses == NULL) {
-      RCLASS(super)->subclasses = st_init_numtable();
+    if (RCLASS_SUBCLASSES(super) == NULL) {
+      RCLASS_SUBCLASSES(super) = st_init_numtable();
     }
 
-    st_insert(RCLASS(super)->subclasses, klass, Qtrue);
+    st_insert(RCLASS_SUBCLASSES(super), klass, Qtrue);
   }
 
   return 0;
@@ -61,7 +61,7 @@ rb_class_remove_from_super_subclasses2(VALUE super, VALUE klass)
   struct st_table *tbl;
 
   if (super && super != Qundef) {
-    tbl = RCLASS(super)->subclasses;
+    tbl = RCLASS_SUBCLASSES(super);
     if (tbl) {
       st_delete(tbl, &klass, 0);
     }
@@ -82,7 +82,7 @@ rb_class_foreach_subclass(VALUE klass, int (*f)(VALUE))
 {
   struct st_table *tbl;
   
-  tbl = RCLASS(klass)->subclasses;
+  tbl = RCLASS_SUBCLASSES(klass);
   if (tbl) {
     st_foreach(tbl, *rb_class_foreach_iter_wrapper, (st_data_t)f);
   }

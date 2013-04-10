@@ -2505,9 +2505,9 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
         if (RCLASS_SUBCLASSES(obj) != NULL) {
             rb_class_free_subclass_list(obj);
         }
-	if (RCLASS(obj)->subclasses) {
-	  st_free_table(RCLASS(obj)->subclasses);
-	  RCLASS(obj)->subclasses = NULL;
+	if (RCLASS_SUBCLASSES(obj)) {
+	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  RCLASS_SUBCLASSES(obj) = NULL;
 	}
 	if (RCLASS_MC_TBL(obj)) {
 	  rb_free_mc_table(RCLASS_MC_TBL(obj));

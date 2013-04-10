@@ -28,6 +28,7 @@ struct rb_classext_struct {
     struct st_table *iv_tbl;
     struct st_table *const_tbl;
     struct st_table *mc_tbl;
+    struct st_table *subclasses;
     VALUE seq;
     VALUE iclasstarget;
 };
@@ -40,7 +41,7 @@ struct rb_classext_struct {
 #define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
 #define RCLASS_MC_TBL(c) (RCLASS_EXT(c)->mc_tbl)
 #define RCLASS_SEQ(c) (RCLASS_EXT(c)->seq)
-#define RCLASS_SUBCLASSES(c) (RCLASS(c)->subclasses)
+#define RCLASS_SUBCLASSES(c) (RCLASS_EXT(c)->subclasses)
 #define RCLASS_ICLASSTARGET(c) (RCLASS_EXT(c)->iclasstarget)
 #define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
 
