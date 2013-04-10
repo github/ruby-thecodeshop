@@ -106,16 +106,27 @@ rb_class_zero_super_i(VALUE klass)
   return ST_CONTINUE;
 }
 
+static int
+rb_class_zero_klass_i(VALUE klass)
+{
+  RBASIC(klass)->klass = 0;
+  return ST_CONTINUE;
+}
+
 void
 rb_class_subclasses_zero_super(VALUE klass)
 {
-  rb_class_foreach_subclass(klass, rb_class_zero_super_i);
+  if (BUILTIN_TYPE(klass) == T_MODULE) {
+    rb_class_foreach_subclass(klass, rb_class_zero_klass_i);
+  } else {
+    rb_class_foreach_subclass(klass, rb_class_zero_super_i);
+  }
 }
 
 static void
 rb_module_add_to_subclasses_list(VALUE module, VALUE klass, VALUE iclass)
 {
-  rb_class_subclass_add(module, klass);
+  rb_class_subclass_add(module, iclass);
 }
 
 /**
