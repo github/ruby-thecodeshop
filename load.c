@@ -477,6 +477,7 @@ rb_load_internal(VALUE fname, int wrap)
 
     if (!wrap) {
 	rb_secure(4);		/* should alter global state */
+        //rb_clear_cache_by_class(rb_cObject);
 	th->top_wrapper = 0;
     }
     else {

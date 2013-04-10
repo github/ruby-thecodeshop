@@ -1559,7 +1559,7 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
-    RCLASS_SUPER(klass) = super;
+    rb_class_set_superclass(klass, super);
     rb_make_metaclass(klass, RBASIC(super)->klass);
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
@@ -1673,6 +1673,33 @@ rb_class_superclass(VALUE klass)
 	return Qnil;
     }
     return super;
+}
+
+static int
+rb_class_accumulate_subclass_i(st_data_t klass, st_data_t unused, st_data_t rbary)
+{
+  if (BUILTIN_TYPE(klass) == T_ICLASS) {
+    klass = RCLASS_ICLASSTARGET(klass);
+  }
+  rb_ary_push((VALUE)rbary, (VALUE)klass);
+
+  return ST_CONTINUE;
+}
+
+VALUE
+rb_class_subclasses(VALUE self)
+{
+  VALUE ary;
+  struct st_table *tbl;
+
+  ary = rb_ary_new();
+  tbl = RCLASS_SUBCLASSES(self);
+
+  if (tbl) {
+    st_foreach(tbl, rb_class_accumulate_subclass_i, (st_data_t)ary);
+  }
+
+  return ary;
 }
 
 VALUE
@@ -2787,12 +2814,14 @@ Init_Object(void)
     rb_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
     rb_define_method(rb_cModule, "public_constant", rb_mod_public_constant, -1);
     rb_define_method(rb_cModule, "private_constant", rb_mod_private_constant, -1);
+    rb_define_method(rb_cModule, "included_in", rb_class_subclasses, 0);
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
     rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
     rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_define_method(rb_cClass, "superclass", rb_class_superclass, 0);
+    rb_define_method(rb_cClass, "subclasses", rb_class_subclasses, 0);
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");

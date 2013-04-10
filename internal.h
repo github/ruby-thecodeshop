@@ -1,6 +1,6 @@
 /**********************************************************************
 
-  internal.h -
+  _tinternal.h -
 
   $Author$
   created at: Tue May 17 11:42:20 JST 2011
@@ -27,6 +27,10 @@ struct rb_classext_struct {
     VALUE super;
     struct st_table *iv_tbl;
     struct st_table *const_tbl;
+    struct st_table *mc_tbl;
+    struct st_table *subclasses;
+    VALUE seq;
+    VALUE iclasstarget;
 };
 
 #undef RCLASS_SUPER
@@ -35,6 +39,10 @@ struct rb_classext_struct {
 #define RCLASS_IV_TBL(c) (RCLASS_EXT(c)->iv_tbl)
 #define RCLASS_CONST_TBL(c) (RCLASS_EXT(c)->const_tbl)
 #define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
+#define RCLASS_MC_TBL(c) (RCLASS_EXT(c)->mc_tbl)
+#define RCLASS_SEQ(c) (RCLASS_EXT(c)->seq)
+#define RCLASS_SUBCLASSES(c) (RCLASS_EXT(c)->subclasses)
+#define RCLASS_ICLASSTARGET(c) (RCLASS_EXT(c)->iclasstarget)
 #define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
 
 struct vtm; /* defined by timev.h */
@@ -47,6 +55,8 @@ VALUE rb_big_fdiv(VALUE x, VALUE y);
 VALUE rb_big_uminus(VALUE x);
 
 /* class.c */
+void rb_class_remove_from_super_subclasses(VALUE);
+void rb_class_remove_from_super_subclasses2(VALUE, VALUE);
 VALUE rb_obj_methods(int argc, VALUE *argv, VALUE obj);
 VALUE rb_obj_protected_methods(int argc, VALUE *argv, VALUE obj);
 VALUE rb_obj_private_methods(int argc, VALUE *argv, VALUE obj);

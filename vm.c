@@ -33,6 +33,7 @@
 #define PROCDEBUG 0
 
 VALUE rb_cRubyVM;
+VALUE rb_mMethodCache;
 VALUE rb_cThread;
 VALUE rb_cEnv;
 VALUE rb_mRubyVMFrozenCore;
@@ -59,14 +60,6 @@ void vm_analysis_insn(int insn);
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
 
-void
-rb_vm_change_state(void)
-{
-    INC_VM_STATE_VERSION();
-}
-
-static void vm_clear_global_method_cache(void);
-
 static void
 vm_clear_all_inline_method_cache(void)
 {
@@ -79,7 +72,6 @@ vm_clear_all_inline_method_cache(void)
 static void
 vm_clear_all_cache()
 {
-    vm_clear_global_method_cache();
     vm_clear_all_inline_method_cache();
     ruby_vm_global_state_version = 1;
 }
@@ -1970,11 +1962,13 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
     miseq->klass = klass;
     miseq->defined_method_id = id;
     rb_add_method(klass, id, VM_METHOD_TYPE_ISEQ, miseq, noex);
+    rb_clear_cache_by_class(klass);
 
     if (!is_singleton && noex == NOEX_MODFUNC) {
 	rb_add_method(rb_singleton_class(klass), id, VM_METHOD_TYPE_ISEQ, miseq, NOEX_PUBLIC);
+
+	rb_clear_cache_by_class(rb_singleton_class(klass));
     }
-    INC_VM_STATE_VERSION();
 }
 
 #define REWIND_CFP(expr) do { \
@@ -2023,7 +2017,8 @@ m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
 {
     REWIND_CFP({
 	rb_undef(cbase, SYM2ID(sym));
-	INC_VM_STATE_VERSION();
+        rb_clear_cache_by_class(cbase);
+        rb_clear_cache_by_class(self);
     });
     return Qnil;
 }
@@ -2095,6 +2090,55 @@ nsdr(void)
     return ary;
 }
 
+static VALUE
+rbvm_global_state_version(VALUE self)
+{
+  return ULONG2NUM(ruby_vm_global_state_version);
+}
+
+static VALUE
+rbvm_method_cache_hits(VALUE self)
+{
+  return ULONG2NUM(cache_stats.hits);
+}
+
+static VALUE
+rbvm_method_cache_misses(VALUE self)
+{
+  return ULONG2NUM(cache_stats.misses);
+}
+
+static VALUE
+rbvm_method_cache_miss_time(VALUE self)
+{
+  return DBL2NUM(cache_stats.miss_time);
+}
+
+static VALUE
+rbvm_method_cache_invalidation_time(VALUE self)
+{
+  return DBL2NUM(cache_stats.inval_time);
+}
+
+static VALUE
+rbvm_method_cache_invalidation_log_equals(VALUE self, VALUE io)
+{
+  char *headerfooter;
+  time_t now = time(NULL);
+
+  if (io == Qnil && cache_stats.invalidation_log != Qnil) {
+    method_cache_log(cache_stats.invalidation_log,
+	"[%ld] stopped logging method cache invalidations\n", (long) now);
+  } else if (io != Qnil) {
+    method_cache_log(io,
+	"[%ld] started logging method cache invalidations\n", (long) now);
+  }
+
+  cache_stats.invalidation_log = io;
+
+  return Qnil;
+}
+
 void
 Init_VM(void)
 {
@@ -2120,6 +2164,16 @@ Init_VM(void)
     rb_obj_freeze(fcore);
     rb_gc_register_mark_object(fcore);
     rb_mRubyVMFrozenCore = fcore;
+
+    rb_mMethodCache = rb_define_module_under(rb_cRubyVM, "MethodCache");
+
+    rb_define_singleton_method(rb_mMethodCache, "global_invalidations", rbvm_global_state_version, 0);
+
+    rb_define_singleton_method(rb_mMethodCache, "hits", rbvm_method_cache_hits, 0);
+    rb_define_singleton_method(rb_mMethodCache, "misses", rbvm_method_cache_misses, 0);
+    rb_define_singleton_method(rb_mMethodCache, "miss_time", rbvm_method_cache_miss_time, 0);
+    rb_define_singleton_method(rb_mMethodCache, "invalidation_time", rbvm_method_cache_invalidation_time, 0);
+    rb_define_singleton_method(rb_mMethodCache, "invalidation_log=", rbvm_method_cache_invalidation_log_equals, 1);
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);

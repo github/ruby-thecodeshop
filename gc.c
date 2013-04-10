@@ -27,9 +27,7 @@
 #include <sys/types.h>
 #include <assert.h>
 
-#ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
-#endif
+#include "timing.c"
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -141,48 +139,6 @@ typedef struct gc_profile_record {
     size_t allocate_limit;
 } gc_profile_record;
 
-static double
-getrusage_time(void)
-{
-#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_PROCESS_CPUTIME_ID)
-    struct timespec ts;
-
-    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
-        return ts.tv_sec + ts.tv_nsec * 1e-9;
-    }
-#elif defined RUSAGE_SELF
-    struct rusage usage;
-    struct timeval time;
-    getrusage(RUSAGE_SELF, &usage);
-    time = usage.ru_utime;
-    return time.tv_sec + time.tv_usec * 1e-6;
-#elif defined _WIN32
-    FILETIME creation_time, exit_time, kernel_time, user_time;
-    ULARGE_INTEGER ui;
-    LONG_LONG q;
-    double t;
-
-    if (GetProcessTimes(GetCurrentProcess(),
-			&creation_time, &exit_time, &kernel_time, &user_time) == 0)
-    {
-	return 0.0;
-    }
-    memcpy(&ui, &user_time, sizeof(FILETIME));
-    q = ui.QuadPart / 10L;
-    t = (DWORD)(q % 1000000L) * 1e-6;
-    q /= 1000000L;
-#ifdef __GNUC__
-    t += q;
-#else
-    t += (double)(DWORD)(q >> 16) * (1 << 16);
-    t += (DWORD)q & ~(~0 << 16);
-#endif
-    return t;
-#else
-    return 0.0;
-#endif
-}
-
 #define GC_PROF_TIMER_START do {\
 	if (objspace->profile.run) {\
 	    if (!objspace->profile.record) {\
@@ -200,6 +156,9 @@ getrusage_time(void)
 	    gc_time = getrusage_time();\
 	    objspace->profile.record[count].gc_invoke_time = gc_time - objspace->profile.invoke_time;\
 	}\
+	if (objspace->basic_profile.run) {\
+	  objspace->basic_profile.gc_start = getrusage_time();\
+	}\
     } while(0)
 
 #define GC_PROF_TIMER_STOP(marked) do {\
@@ -211,6 +170,11 @@ getrusage_time(void)
 	    objspace->profile.record[count].is_marked = !!(marked);\
 	    GC_PROF_SET_HEAP_INFO(objspace->profile.record[count]);\
 	    objspace->profile.count++;\
+	}\
+	if (objspace->basic_profile.run) {\
+	  objspace->basic_profile.total_time += getrusage_time() - objspace->basic_profile.gc_start;\
+	  objspace->basic_profile.gc_start = 0;\
+	  objspace->basic_profile.count++;\
 	}\
     } while(0)
 
@@ -281,6 +245,9 @@ getrusage_time(void)
     } while(0)
 #endif
 
+#ifndef INT2BOOL
+#define INT2BOOL(x)  ((x)?Qtrue:Qfalse)
+#endif
 
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__)
 #pragma pack(push, 1) /* magic for reducing sizeof(RVALUE): 24 -> 20 */
@@ -366,6 +333,13 @@ struct pool_layout_t {
 static void pool_finalize_header(pool_header *header);
 #endif
 
+typedef struct rb_gc_basic_profile {
+  int run;
+  double gc_start;
+  double total_time;
+  size_t count;
+} rb_gc_basic_profile_t;
+
 typedef struct rb_objspace {
     struct {
 	size_t limit;
@@ -417,6 +391,7 @@ typedef struct rb_objspace {
 	size_t size;
 	double invoke_time;
     } profile;
+    struct rb_gc_basic_profile basic_profile;
     struct gc_list *global_list;
     size_t count;
     double gc_time;
@@ -726,7 +701,7 @@ static VALUE
 gc_profile_enable_get(VALUE self)
 {
     rb_objspace_t *objspace = &rb_objspace;
-    return objspace->profile.run;
+    return INT2BOOL(objspace->profile.run);
 }
 
 /*
@@ -758,8 +733,8 @@ static VALUE
 gc_profile_disable(void)
 {
     rb_objspace_t *objspace = &rb_objspace;
-
     objspace->profile.run = FALSE;
+
     return Qnil;
 }
 
@@ -1803,6 +1778,20 @@ rb_free_m_table(st_table *tbl)
 }
 
 static int
+free_method_cache_entry_i(ID key, method_cache_entry_t *entry, st_data_t data)
+{
+  free(entry);
+  return ST_CONTINUE;
+}
+
+void
+rb_free_mc_table(st_table *tbl)
+{
+  st_foreach(tbl, free_method_cache_entry_i, 0);
+  st_free_table(tbl);
+}
+
+static int
 mark_const_entry_i(ID key, const rb_const_entry_t *ce, st_data_t data)
 {
     struct mark_tbl_arg *arg = (void*)data;
@@ -2564,7 +2553,6 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	break;
       case T_MODULE:
       case T_CLASS:
-	rb_clear_cache_by_class((VALUE)obj);
 	rb_free_m_table(RCLASS_M_TBL(obj));
 	if (RCLASS_IV_TBL(obj)) {
 	    st_free_table(RCLASS_IV_TBL(obj));
@@ -2575,6 +2563,16 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	if (RCLASS_IV_INDEX_TBL(obj)) {
 	    st_free_table(RCLASS_IV_INDEX_TBL(obj));
 	}
+	if (RCLASS_SUBCLASSES(obj)) {
+	  rb_class_subclasses_zero_super(obj);
+	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  RCLASS_SUBCLASSES(obj) = NULL;
+	}
+	if (RCLASS_MC_TBL(obj)) {
+	  rb_free_mc_table(RCLASS_MC_TBL(obj));
+	  RCLASS_MC_TBL(obj) = NULL;
+	}
+        rb_class_remove_from_super_subclasses(obj);
         xfree(RANY(obj)->as.klass.ptr);
 	break;
       case T_STRING:
@@ -2627,6 +2625,15 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	break;
       case T_ICLASS:
 	/* iClass shares table with the module */
+	if (RCLASS_SUBCLASSES(obj)) {
+	  rb_class_subclasses_zero_super(obj);
+	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  RCLASS_SUBCLASSES(obj) = NULL;
+	}
+	if (RCLASS_ICLASSTARGET(obj)) {
+	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS_ICLASSTARGET(obj));
+	}
+        rb_class_remove_from_super_subclasses(obj);
 	xfree(RANY(obj)->as.klass.ptr);
 	break;
 
@@ -4016,6 +4023,87 @@ gc_profile_total_time(VALUE self)
     return DBL2NUM(time);
 }
 
+// GC::BasicProfiler methods
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.enabled?                 -> true or false
+ *
+ *  The current status of GC::BasicProfiler.
+ */
+
+static VALUE
+gc_basic_profile_enable_get(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return INT2BOOL(objspace->basic_profile.run);
+}
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.enable          -> nil
+ *
+ *  Starts the Basic GC profiler.
+ *
+ */
+
+static VALUE
+gc_basic_profile_enable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    objspace->basic_profile.run = TRUE;
+
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *    GC::BasicProfiler.disable          -> nil
+ *
+ *  Stops the Basic GC profiler.
+ *
+ */
+
+static VALUE
+gc_basic_profile_disable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    MEMZERO(&objspace->basic_profile, struct rb_gc_basic_profile, 1);
+
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     GC::BasicProfiler.total_time -> float
+ *
+ *  The total time used for garbage collection in milliseconds
+ */
+
+static VALUE
+gc_basic_profile_total_time(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    return DBL2NUM(objspace->basic_profile.total_time);
+}
+
+/*
+ *  call-seq:
+ *     GC::BasicProfiler.count -> int
+ *
+ *  The number of times the gc has run
+ */
+
+static VALUE
+gc_basic_profile_count(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    return SIZET2NUM(objspace->basic_profile.count);
+}
+
 /*  Document-class: GC::Profiler
  *
  *  The GC profiler provides access to information on GC runs including time,
@@ -4048,6 +4136,7 @@ Init_GC(void)
 {
     VALUE rb_mObSpace;
     VALUE rb_mProfiler;
+    VALUE rb_mBasicProfiler;
 
     rb_mGC = rb_define_module("GC");
     rb_define_singleton_method(rb_mGC, "start", rb_gc_start, 0);
@@ -4069,6 +4158,13 @@ Init_GC(void)
     rb_define_singleton_method(rb_mProfiler, "result", gc_profile_result, 0);
     rb_define_singleton_method(rb_mProfiler, "report", gc_profile_report, -1);
     rb_define_singleton_method(rb_mProfiler, "total_time", gc_profile_total_time, 0);
+
+    rb_mBasicProfiler = rb_define_module_under(rb_mGC, "BasicProfiler");
+    rb_define_singleton_method(rb_mBasicProfiler, "enabled?", gc_basic_profile_enable_get, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "enable", gc_basic_profile_enable, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "disable", gc_basic_profile_disable, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "total_time", gc_basic_profile_total_time, 0);
+    rb_define_singleton_method(rb_mBasicProfiler, "count", gc_basic_profile_count, 0);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
