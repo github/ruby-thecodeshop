@@ -647,7 +647,6 @@ struct RClass {
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
-    struct st_table *mc_tbl;
     struct st_table *subclasses;
     VALUE iclasstarget;
 };
