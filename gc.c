@@ -2569,8 +2569,8 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
         if (RCLASS_SUBCLASSES(obj) != NULL) {
             rb_class_free_subclass_list(obj);
         }
-	if (RCLASS(obj)->iclasstarget) {
-	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS(obj)->iclasstarget);
+	if (RCLASS_ICLASSTARGET(obj)) {
+	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS_ICLASSTARGET(obj));
 	}
         rb_class_remove_from_super_subclasses(obj);
 	xfree(RANY(obj)->as.klass.ptr);

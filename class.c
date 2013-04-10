@@ -144,7 +144,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_SEQ(obj) = NEXT_SEQ();
-    RCLASS(obj)->iclasstarget = 0;
+    RCLASS_ICLASSTARGET(obj) = 0;
     RCLASS_MC_TBL(obj) = NULL;
 
     return (VALUE)obj;
@@ -788,7 +788,7 @@ rb_include_module(VALUE klass, VALUE module)
 	    }
 	}
 	iclass = include_class_new(module, RCLASS_SUPER(c));
-	RCLASS(iclass)->iclasstarget = klass;
+	RCLASS_ICLASSTARGET(iclass) = klass;
 
 	c = rb_class_set_superclass(c, iclass);
 
