@@ -161,7 +161,7 @@ VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);
 VALUE rb_mod_init_copy(VALUE, VALUE);
 VALUE rb_class_init_copy(VALUE, VALUE);
-void rb_class_free_subclass_list(VALUE);
+void rb_class_subclasses_zero_super(VALUE);
 VALUE rb_class_set_superclass(VALUE, VALUE);
 VALUE rb_singleton_class_clone(VALUE);
 void rb_singleton_class_attached(VALUE,VALUE);

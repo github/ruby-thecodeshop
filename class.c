@@ -100,16 +100,16 @@ rb_class_set_superclass(VALUE klass, VALUE super)
 }
 
 static int
-rb_class_free_subclass(VALUE klass)
+rb_class_zero_super_i(VALUE klass)
 {
-  rb_class_free_subclass_list(klass);
-  return ST_DELETE;
+  RCLASS_SUPER(klass) = 0;
+  return ST_CONTINUE;
 }
 
 void
-rb_class_free_subclass_list(VALUE klass)
+rb_class_subclasses_zero_super(VALUE klass)
 {
-  rb_class_foreach_subclass(klass, rb_class_free_subclass);
+  rb_class_foreach_subclass(klass, rb_class_zero_super_i);
 }
 
 static void
