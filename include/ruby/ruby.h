@@ -637,18 +637,6 @@ typedef struct method_cache_entry {
   struct method_cache_entry *next;
 } method_cache_entry_t;
 
-struct subclass_entry;
-typedef struct subclass_entry subclass_entry_t;
-
-/**
- * If this is the subclass list of a module, then `klass` is the target class
- * that is being included rather than the `ICLASS`.
- */
-struct subclass_entry {
-    VALUE klass;
-    subclass_entry_t *next;
-};
-
 /**
  * In the case that this is an `ICLASS`, `module_subclasses` points to the link
  * in the module's `subclasses` list that indicates that the klass has been

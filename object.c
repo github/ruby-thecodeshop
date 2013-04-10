@@ -1679,14 +1679,6 @@ VALUE
 rb_class_subclasses(VALUE self)
 {
   VALUE ary = rb_ary_new();
-  subclass_entry_t *entry;
-
-  if (RCLASS_SUBCLASSES(self) != NULL) {
-    entry = RCLASS_SUBCLASSES(self);
-    do {
-      rb_ary_push(ary, entry->klass);
-    } while((entry = entry->next) != NULL);
-  }
 
   return ary;
 }
@@ -1695,14 +1687,6 @@ VALUE
 rb_module_subclasses(VALUE self)
 {
   VALUE ary = rb_ary_new();
-  subclass_entry_t *entry;
-
-  if (RCLASS_SUBCLASSES(self) != NULL) {
-    entry = RCLASS_SUBCLASSES(self);
-    do {
-      rb_ary_push(ary, entry->klass);
-    } while((entry = entry->next) != NULL);
-  }
 
   return ary;
 }
