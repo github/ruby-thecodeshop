@@ -2564,6 +2564,11 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	break;
       case T_ICLASS:
 	/* iClass shares table with the module */
+	if (RCLASS_SUBCLASSES(obj)) {
+	  rb_class_subclasses_zero_super(obj);
+	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  RCLASS_SUBCLASSES(obj) = NULL;
+	}
 	if (RCLASS_ICLASSTARGET(obj)) {
 	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS_ICLASSTARGET(obj));
 	}
