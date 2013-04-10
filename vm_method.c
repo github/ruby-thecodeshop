@@ -122,10 +122,6 @@ void
 rb_free_method_entry(rb_method_entry_t *me)
 {
     rb_method_definition_t *def = me->def;
-    
-    //fprintf(stderr, "freeing method entry: %p\n", me);
-
-    rb_clear_cache_by_class(me->klass);
 
     if (def) {
 	if (def->alias_count == 0) {
