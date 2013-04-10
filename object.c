@@ -1675,18 +1675,27 @@ rb_class_superclass(VALUE klass)
     return super;
 }
 
-VALUE
-rb_class_subclasses(VALUE self)
+static int
+rb_class_accumulate_subclass_i(st_data_t klass, st_data_t unused, st_data_t rbary)
 {
-  VALUE ary = rb_ary_new();
-
-  return ary;
+  if (BUILTIN_TYPE(klass) == T_ICLASS) {
+    klass = RCLASS_ICLASSTARGET(klass);
+  }
+  rb_ary_push((VALUE)rbary, (VALUE)klass);
 }
 
 VALUE
-rb_module_subclasses(VALUE self)
+rb_class_subclasses(VALUE self)
 {
-  VALUE ary = rb_ary_new();
+  VALUE ary;
+  struct st_table *tbl;
+
+  ary = rb_ary_new();
+  tbl = RCLASS_SUBCLASSES(self);
+
+  if (tbl) {
+    st_foreach(tbl, rb_class_accumulate_subclass_i, (st_data_t)ary);
+  }
 
   return ary;
 }
@@ -2803,7 +2812,7 @@ Init_Object(void)
     rb_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
     rb_define_method(rb_cModule, "public_constant", rb_mod_public_constant, -1);
     rb_define_method(rb_cModule, "private_constant", rb_mod_private_constant, -1);
-    rb_define_method(rb_cModule, "included_in", rb_module_subclasses, 0);
+    rb_define_method(rb_cModule, "included_in", rb_class_subclasses, 0);
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
     rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
