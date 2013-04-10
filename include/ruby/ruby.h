@@ -649,7 +649,6 @@ struct RClass {
     struct st_table *iv_index_tbl;
     struct st_table *mc_tbl;
     struct st_table *subclasses;
-    VALUE seq;
     VALUE iclasstarget;
 };
 
