@@ -1682,6 +1682,8 @@ rb_class_accumulate_subclass_i(st_data_t klass, st_data_t unused, st_data_t rbar
     klass = RCLASS_ICLASSTARGET(klass);
   }
   rb_ary_push((VALUE)rbary, (VALUE)klass);
+
+  return ST_CONTINUE;
 }
 
 VALUE
