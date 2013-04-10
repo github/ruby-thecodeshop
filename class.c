@@ -84,7 +84,7 @@ rb_class_foreach_subclass(VALUE klass, int (*f)(VALUE))
   
   tbl = RCLASS_SUBCLASSES(klass);
   if (tbl) {
-    st_foreach(tbl, *rb_class_foreach_iter_wrapper, (st_data_t)f);
+    st_foreach(tbl, rb_class_foreach_iter_wrapper, (st_data_t)f);
   }
 }
 
@@ -109,7 +109,7 @@ rb_class_free_subclass(VALUE klass)
 void
 rb_class_free_subclass_list(VALUE klass)
 {
-  rb_class_foreach_subclass(klass, *rb_class_free_subclass);
+  rb_class_foreach_subclass(klass, rb_class_free_subclass);
 }
 
 static void
