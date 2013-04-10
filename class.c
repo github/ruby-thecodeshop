@@ -52,7 +52,7 @@ rb_class_subclass_add(VALUE super, VALUE klass)
 void
 rb_class_remove_from_super_subclasses(VALUE klass)
 {
-  rb_class_remove_from_super_subclasses2(RBASIC(klass)->klass, klass);
+  rb_class_remove_from_super_subclasses2(RCLASS_SUPER(klass), klass);
 }
 
 void
@@ -60,7 +60,7 @@ rb_class_remove_from_super_subclasses2(VALUE super, VALUE klass)
 {
   struct st_table *tbl;
 
-  if (super) {
+  if (super && super != Qundef) {
     tbl = RCLASS(super)->subclasses;
     if (tbl) {
       st_delete(tbl, &klass, 0);
