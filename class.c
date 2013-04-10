@@ -145,6 +145,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_SEQ(obj) = NEXT_SEQ();
     RCLASS(obj)->iclasstarget = 0;
+    RCLASS_MC_TBL(obj) = NULL;
 
     return (VALUE)obj;
 }
