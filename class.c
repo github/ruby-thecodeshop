@@ -803,7 +803,11 @@ rb_include_module(VALUE klass, VALUE module)
 
 	c = rb_class_set_superclass(c, iclass);
 
-	rb_module_add_to_subclasses_list(module, klass, iclass);
+	if (BUILTIN_TYPE(module) == T_ICLASS) {
+	  rb_module_add_to_subclasses_list(RBASIC(module)->klass, klass, iclass);
+	} else {
+	  rb_module_add_to_subclasses_list(module, klass, iclass);
+	}
 
 	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries)
 	    changed = 1;
