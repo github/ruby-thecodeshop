@@ -250,7 +250,6 @@ method_added(VALUE klass, ID mid)
     if (mid != ID_ALLOCATOR && ruby_running) {
 	CALL_METHOD_HOOK(klass, added, mid);
     }
-    rb_clear_cache_by_class(klass);
 }
 
 rb_method_entry_t *
@@ -301,9 +300,10 @@ rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *opts, rb_method_
     }
     if (type != VM_METHOD_TYPE_UNDEF) {
 	method_added(klass, mid);
-    } else {
-        rb_clear_cache_by_class(klass);
     }
+
+    rb_clear_cache_by_class(klass);
+
     return me;
 }
 
