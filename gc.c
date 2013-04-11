@@ -2502,14 +2502,18 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	    st_free_table(RCLASS_IV_INDEX_TBL(obj));
 	}
 	if (RCLASS_SUBCLASSES(obj)) {
-	  rb_class_subclasses_zero_super(obj);
-	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  if (BUILTIN_TYPE(obj) == T_MODULE) {
+	    rb_class_detatch_module_subclasses(obj);
+	  } else {
+	    rb_class_detatch_subclasses(obj);
+	  }
 	  RCLASS_SUBCLASSES(obj) = NULL;
 	}
 	if (RCLASS_MC_TBL(obj)) {
 	  rb_free_mc_table(RCLASS_MC_TBL(obj));
 	  RCLASS_MC_TBL(obj) = NULL;
 	}
+	rb_class_remove_from_module_subclasses(obj);
         rb_class_remove_from_super_subclasses(obj);
         xfree(RANY(obj)->as.klass.ptr);
         RANY(obj)->as.klass.ptr = NULL;
@@ -2565,11 +2569,10 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
       case T_ICLASS:
 	/* iClass shares table with the module */
 	if (RCLASS_SUBCLASSES(obj)) {
-	  rb_class_subclasses_zero_super(obj);
-	  st_free_table(RCLASS_SUBCLASSES(obj));
+	  rb_class_detatch_subclasses(obj);
 	  RCLASS_SUBCLASSES(obj) = NULL;
 	}
-	rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, obj);
+	rb_class_remove_from_module_subclasses(obj);
         rb_class_remove_from_super_subclasses(obj);
 	xfree(RANY(obj)->as.klass.ptr);
         RANY(obj)->as.klass.ptr = NULL;

@@ -35,37 +35,80 @@
 extern st_table *rb_class_tbl;
 static ID id_attached;
 
-static unsigned
+static void
 rb_class_subclass_add(VALUE super, VALUE klass)
 {
+  rb_subclass_entry_t *entry, *head;
+
   if (super && super != Qundef) {
-    if (RCLASS_SUBCLASSES(super) == NULL) {
-      RCLASS_SUBCLASSES(super) = st_init_numtable();
+    entry = malloc(sizeof(rb_subclass_entry_t));
+    entry->klass = klass;
+    entry->next = NULL;
+
+    head = RCLASS_SUBCLASSES(super);
+    if (head) {
+      entry->next = head;
+      RCLASS_PARENT_SUBCLASSES(head->klass) = &entry->next;
     }
 
-    st_insert(RCLASS_SUBCLASSES(super), klass, Qtrue);
+    RCLASS_SUBCLASSES(super) = entry;
+    RCLASS_PARENT_SUBCLASSES(klass) = &RCLASS_SUBCLASSES(super);
+  }
+}
+
+static void
+rb_module_add_to_subclasses_list(VALUE module, VALUE iclass)
+{
+  rb_subclass_entry_t *entry, *head;
+
+  entry = malloc(sizeof(rb_subclass_entry_t));
+  entry->klass = iclass;
+  entry->next = NULL;
+
+  head = RCLASS_SUBCLASSES(module);
+  if (head) {
+    entry->next = head;
+    RCLASS_MODULE_SUBCLASSES(head->klass) = &entry->next;
   }
 
-  return 0;
+  RCLASS_SUBCLASSES(module) = entry;
+  RCLASS_MODULE_SUBCLASSES(iclass) = &RCLASS_SUBCLASSES(module);
 }
 
 void
 rb_class_remove_from_super_subclasses(VALUE klass)
 {
-  rb_class_remove_from_super_subclasses2(RCLASS_SUPER(klass), klass);
+  rb_subclass_entry_t *entry;
+
+
+  if (RCLASS_PARENT_SUBCLASSES(klass)) {
+    entry = *RCLASS_PARENT_SUBCLASSES(klass);
+
+    *RCLASS_PARENT_SUBCLASSES(klass) = entry->next;
+    if (entry->next) {
+      RCLASS_PARENT_SUBCLASSES(entry->next->klass) = RCLASS_PARENT_SUBCLASSES(klass);
+    }
+    free(entry);
+  }
+
+  RCLASS_PARENT_SUBCLASSES(klass) = NULL;
 }
 
 void
-rb_class_remove_from_super_subclasses2(VALUE super, VALUE klass)
+rb_class_remove_from_module_subclasses(VALUE klass)
 {
-  struct st_table *tbl;
+  rb_subclass_entry_t *entry;
 
-  if (super && super != Qundef) {
-    tbl = RCLASS_SUBCLASSES(super);
-    if (tbl) {
-      st_delete(tbl, &klass, 0);
+  if (RCLASS_MODULE_SUBCLASSES(klass)) {
+    entry = *RCLASS_MODULE_SUBCLASSES(klass);
+    *RCLASS_MODULE_SUBCLASSES(klass) = entry->next;
+    if (entry->next) {
+      RCLASS_MODULE_SUBCLASSES(entry->next->klass) = RCLASS_MODULE_SUBCLASSES(klass);
     }
+    free(entry);
   }
+
+  RCLASS_MODULE_SUBCLASSES(klass) = NULL;
 }
 
 static int
@@ -78,13 +121,17 @@ rb_class_foreach_iter_wrapper(st_data_t key, st_data_t unused, st_data_t rf)
 }
 
 void
-rb_class_foreach_subclass(VALUE klass, int (*f)(VALUE))
+rb_class_foreach_subclass(VALUE klass, void (*f)(VALUE))
 {
-  struct st_table *tbl;
-  
-  tbl = RCLASS_SUBCLASSES(klass);
-  if (tbl) {
-    st_foreach(tbl, rb_class_foreach_iter_wrapper, (st_data_t)f);
+  rb_subclass_entry_t *cur;
+  VALUE curklass;
+
+  cur = RCLASS_SUBCLASSES(klass);
+  while(cur)
+  {
+    curklass = cur->klass;
+    cur = cur->next;
+    f(curklass);
   }
 }
 
@@ -99,34 +146,16 @@ rb_class_set_superclass(VALUE klass, VALUE super)
   return super;
 }
 
-static int
-rb_class_zero_super_i(VALUE klass)
+void
+rb_class_detatch_subclasses(VALUE klass)
 {
-  RCLASS_SUPER(klass) = 0;
-  return ST_CONTINUE;
-}
-
-static int
-rb_class_zero_klass_i(VALUE klass)
-{
-  RBASIC(klass)->klass = 0;
-  return ST_CONTINUE;
+  rb_class_foreach_subclass(klass, rb_class_remove_from_super_subclasses);
 }
 
 void
-rb_class_subclasses_zero_super(VALUE klass)
+rb_class_detatch_module_subclasses(VALUE klass)
 {
-  if (BUILTIN_TYPE(klass) == T_MODULE) {
-    rb_class_foreach_subclass(klass, rb_class_zero_klass_i);
-  } else {
-    rb_class_foreach_subclass(klass, rb_class_zero_super_i);
-  }
-}
-
-static void
-rb_module_add_to_subclasses_list(VALUE module, VALUE iclass)
-{
-  rb_class_subclass_add(module, iclass);
+  rb_class_foreach_subclass(klass, rb_class_remove_from_module_subclasses);
 }
 
 /**
@@ -154,6 +183,8 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_SUPER(obj) = 0;
     RCLASS_IV_INDEX_TBL(obj) = 0;
     RCLASS_SUBCLASSES(obj) = NULL;
+    RCLASS_PARENT_SUBCLASSES(obj) = NULL;
+    RCLASS_MODULE_SUBCLASSES(obj) = NULL;
     RCLASS_SEQ(obj) = NEXT_SEQ();
     RCLASS_ICLASSTARGET(obj) = 0;
     RCLASS_MC_TBL(obj) = NULL;
@@ -178,8 +209,6 @@ rb_class_boot(VALUE super)
 
     rb_class_set_superclass(klass, super);
     RCLASS_M_TBL(klass) = st_init_numtable();
-
-    rb_class_subclass_add(super, klass);
 
     OBJ_INFECT(klass, super);
     return (VALUE)klass;

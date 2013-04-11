@@ -15,12 +15,11 @@ static ID added, singleton_added, attached;
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
-static int
+void
 rb_class_clear_method_cache(VALUE klass)
 {
   RCLASS_SEQ(klass) = NEXT_SEQ();
-  rb_class_foreach_subclass(klass, &rb_class_clear_method_cache);
-  return ST_CONTINUE;
+  rb_class_foreach_subclass(klass, rb_class_clear_method_cache);
 }
 
 void
