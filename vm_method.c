@@ -19,6 +19,7 @@ static int
 rb_class_clear_method_cache(VALUE klass)
 {
   RCLASS_SEQ(klass) = NEXT_SEQ();
+  rb_class_foreach_subclass(klass, &rb_class_clear_method_cache);
   return ST_CONTINUE;
 }
 
@@ -32,7 +33,6 @@ rb_clear_cache_by_class(VALUE klass)
       INC_VM_STATE_VERSION();
     } else {
       rb_class_clear_method_cache(klass);
-      rb_class_foreach_subclass(klass, &rb_class_clear_method_cache);
     }
 
     cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;
