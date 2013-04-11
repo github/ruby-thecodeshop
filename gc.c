@@ -2512,6 +2512,7 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	}
         rb_class_remove_from_super_subclasses(obj);
         xfree(RANY(obj)->as.klass.ptr);
+        RANY(obj)->as.klass.ptr = NULL;
 	break;
       case T_STRING:
 	rb_str_free(obj);
@@ -2568,11 +2569,10 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 	  st_free_table(RCLASS_SUBCLASSES(obj));
 	  RCLASS_SUBCLASSES(obj) = NULL;
 	}
-	if (RCLASS_ICLASSTARGET(obj)) {
-	  rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, RCLASS_ICLASSTARGET(obj));
-	}
+	rb_class_remove_from_super_subclasses2(RBASIC(obj)->klass, obj);
         rb_class_remove_from_super_subclasses(obj);
 	xfree(RANY(obj)->as.klass.ptr);
+        RANY(obj)->as.klass.ptr = NULL;
 	break;
 
       case T_FLOAT:
