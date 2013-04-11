@@ -124,7 +124,7 @@ rb_class_subclasses_zero_super(VALUE klass)
 }
 
 static void
-rb_module_add_to_subclasses_list(VALUE module, VALUE klass, VALUE iclass)
+rb_module_add_to_subclasses_list(VALUE module, VALUE iclass)
 {
   rb_class_subclass_add(module, iclass);
 }
@@ -804,9 +804,9 @@ rb_include_module(VALUE klass, VALUE module)
 	c = rb_class_set_superclass(c, iclass);
 
 	if (BUILTIN_TYPE(module) == T_ICLASS) {
-	  rb_module_add_to_subclasses_list(RBASIC(module)->klass, klass, iclass);
+	  rb_module_add_to_subclasses_list(RBASIC(module)->klass, iclass);
 	} else {
-	  rb_module_add_to_subclasses_list(module, klass, iclass);
+	  rb_module_add_to_subclasses_list(module, iclass);
 	}
 
 	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries)
