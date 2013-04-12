@@ -35,7 +35,7 @@ struct rb_classext_struct {
     VALUE super;
     struct st_table *iv_tbl;
     struct st_table *const_tbl;
-    struct st_table *mc_tbl;
+    struct sa_table *mc_tbl;
     rb_subclass_entry_t *subclasses;
     rb_subclass_entry_t **parent_subclasses;
     rb_subclass_entry_t **module_subclasses;

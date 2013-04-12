@@ -1744,14 +1744,14 @@ static int
 free_method_cache_entry_i(ID key, method_cache_entry_t *entry, st_data_t data)
 {
   free(entry);
-  return ST_CONTINUE;
+  return SA_CONTINUE;
 }
 
 void
-rb_free_mc_table(st_table *tbl)
+rb_free_mc_table(sa_table *tbl)
 {
-  st_foreach(tbl, free_method_cache_entry_i, 0);
-  st_free_table(tbl);
+  sa_foreach(tbl, free_method_cache_entry_i, 0);
+  sa_free_table(tbl);
 }
 
 static int

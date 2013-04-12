@@ -151,7 +151,7 @@ st_index_t st_hash_start(st_index_t h);
 #pragma GCC visibility pop
 #endif
 
-typedef unsigned int sa_index_t;
+typedef uint64_t sa_index_t;
 #define SA_STOP     ST_STOP
 #define SA_CONTINUE ST_CONTINUE
 
