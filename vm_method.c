@@ -15,11 +15,11 @@ static ID added, singleton_added, attached;
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
-static int
+void
 rb_class_clear_method_cache(VALUE klass)
 {
   RCLASS_SEQ(klass) = NEXT_SEQ();
-  return ST_CONTINUE;
+  rb_class_foreach_subclass(klass, rb_class_clear_method_cache);
 }
 
 void
@@ -32,7 +32,6 @@ rb_clear_cache_by_class(VALUE klass)
       INC_VM_STATE_VERSION();
     } else {
       rb_class_clear_method_cache(klass);
-      rb_class_foreach_subclass(klass, &rb_class_clear_method_cache);
     }
 
     cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;
@@ -250,7 +249,6 @@ method_added(VALUE klass, ID mid)
     if (mid != ID_ALLOCATOR && ruby_running) {
 	CALL_METHOD_HOOK(klass, added, mid);
     }
-    rb_clear_cache_by_class(klass);
 }
 
 rb_method_entry_t *
@@ -301,9 +299,10 @@ rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *opts, rb_method_
     }
     if (type != VM_METHOD_TYPE_UNDEF) {
 	method_added(klass, mid);
-    } else {
-        rb_clear_cache_by_class(klass);
     }
+
+    rb_clear_cache_by_class(klass);
+
     return me;
 }
 
