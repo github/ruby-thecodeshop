@@ -412,14 +412,14 @@ rb_method_entry(VALUE klass, ID id)
     st_data_t body;
 
     if (RCLASS_MC_TBL(klass) == NULL) {
-	RCLASS_MC_TBL(klass) = st_init_numtable();
+	RCLASS_MC_TBL(klass) = sa_new_table();
     }
 
-    if (st_lookup(RCLASS_MC_TBL(klass), id, &body)) {
+    if (sa_lookup(RCLASS_MC_TBL(klass), id, &body)) {
 	ent = (method_cache_entry_t *)body;
     } else {
 	ent = calloc(1, sizeof(method_cache_entry_t));
-	st_insert(RCLASS_MC_TBL(klass), id, (st_data_t) ent);
+	sa_insert(RCLASS_MC_TBL(klass), id, (st_data_t) ent);
     }
 
     if (ent->seq == RCLASS_SEQ(klass) &&
