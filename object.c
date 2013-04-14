@@ -1690,13 +1690,20 @@ VALUE
 rb_class_subclasses(VALUE self)
 {
   VALUE ary;
-  struct st_table *tbl;
+  rb_subclass_entry_t *cur;
 
   ary = rb_ary_new();
-  tbl = RCLASS_SUBCLASSES(self);
+  cur = RCLASS_SUBCLASSES(self);
 
-  if (tbl) {
-    st_foreach(tbl, rb_class_accumulate_subclass_i, (st_data_t)ary);
+  while(cur != NULL)
+  {
+    if (BUILTIN_TYPE(cur->klass) == T_ICLASS) {
+      rb_ary_push(ary, RCLASS_ICLASSTARGET(cur->klass));
+    } else {
+      rb_ary_push(ary, cur->klass);
+    }
+
+    cur = cur->next;
   }
 
   return ary;
