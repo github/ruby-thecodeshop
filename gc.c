@@ -1411,7 +1411,7 @@ rb_newobj(void)
     if (UNLIKELY(track_metadata)) {
         struct heaps_header *heap = GET_HEAP_HEADER(obj);
         if (!heap->metadata)
-            heap->metadata = calloc(HEAP_OBJ_LIMIT, sizeof(rb_obj_metadata_t));
+            heap->metadata = calloc(HEAP_OBJ_LIMIT+1, sizeof(rb_obj_metadata_t));
         if (heap->metadata) {
             rb_obj_metadata_t *meta = &heap->metadata[NUM_IN_SLOT(obj)];
             meta->file = rb_sourcefilename();
