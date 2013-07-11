@@ -208,22 +208,6 @@ extern VALUE ruby_vm_const_missing_count;
 
 #endif
 
-typedef struct {
-  unsigned long hits;
-  unsigned long misses;
-
-  double miss_start;
-  double miss_time;
-
-  double inval_start;
-  double inval_time;
-
-  VALUE invalidation_log;
-} cache_stats_t;
-
-static void method_cache_log_backtrace(void);
-static cache_stats_t cache_stats = {0,0,0,0,0,0,Qnil};
-
 static uint64_t ruby_vm_global_state_version = 1;
 static uint64_t ruby_vm_sequence = 1;
 
@@ -232,9 +216,6 @@ static uint64_t ruby_vm_sequence = 1;
 #define INC_VM_STATE_VERSION() do { \
     ruby_vm_global_state_version = (ruby_vm_global_state_version + 1); \
     if (ruby_vm_global_state_version == 0) vm_clear_all_cache(); \
-    if (cache_stats.invalidation_log != Qnil) { \
-      method_cache_log_backtrace(); \
-    } \
 } while (0)
 static void vm_clear_all_cache(void);
 

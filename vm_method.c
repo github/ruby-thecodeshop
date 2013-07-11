@@ -26,16 +26,11 @@ void
 rb_clear_cache_by_class(VALUE klass)
 {
   if (klass && klass != Qundef) {
-    cache_stats.inval_start = getrusage_time();
-
     if (klass == rb_cObject || klass == rb_mKernel) {
       INC_VM_STATE_VERSION();
     } else {
       rb_class_clear_method_cache(klass);
     }
-
-    cache_stats.inval_time += getrusage_time() - cache_stats.inval_start;
-    cache_stats.inval_start = 0;
   }
 }
 
@@ -391,19 +386,6 @@ rb_method_entry_get_without_cache(VALUE klass, ID id, method_cache_entry_t *ent)
     return me;
 }
 
-static inline void
-start_time_method_cache_miss(void)
-{
-  cache_stats.miss_start = getrusage_time();
-}
-
-static inline void
-end_time_method_cache_miss(void)
-{
-  cache_stats.miss_time += getrusage_time() - cache_stats.miss_start;
-  cache_stats.miss_start = 0;
-}
-
 rb_method_entry_t *
 rb_method_entry(VALUE klass, ID id)
 {
@@ -425,18 +407,11 @@ rb_method_entry(VALUE klass, ID id)
     if (ent->seq == RCLASS_SEQ(klass) &&
 	ent->vm_state == GET_VM_STATE_VERSION() &&
 	ent->mid == id) {
-	cache_stats.hits++;
         me = (rb_method_entry_t *)ent->me;
 	return (rb_method_entry_t *)ent->me;
     }
 
-    cache_stats.misses++;
-
-    start_time_method_cache_miss();
-    me = rb_method_entry_get_without_cache(klass, id, ent);
-    end_time_method_cache_miss();
-
-    return me;
+    return rb_method_entry_get_without_cache(klass, id, ent);
 }
 
 static void
@@ -1292,42 +1267,6 @@ static VALUE
 obj_respond_to_missing(VALUE obj, VALUE mid, VALUE priv)
 {
     return Qfalse;
-}
-
-static void
-method_cache_log(VALUE io, const char *fmt, ...)
-{
-  char *line;
-  va_list args;
-  va_start(args, fmt);
-  vasprintf(&line, fmt, args);
-  rb_funcall(io, rb_intern("write"), 1, rb_str_new(line, strlen(line)));
-  free(line);
-}
-
-static int
-method_cache_print_backtrace(void *arg, VALUE file, int line, VALUE method)
-{
-    VALUE io = (VALUE)arg;
-    const char *filename = NIL_P(file) ? "ruby" : RSTRING_PTR(file);
-
-    if (NIL_P(method)) {
-      method_cache_log(io, "\tfrom %s:%d:in unknown method\n", filename, line);
-    }
-    else {
-      method_cache_log(io, "\tfrom %s:%d:in `%s'\n",
-		filename, line, RSTRING_PTR(method));
-    }
-
-    return FALSE;
-}
-
-static void
-method_cache_log_backtrace(void)
-{
-  method_cache_log(cache_stats.invalidation_log,
-  "[%ld] method cache invalidation at:\n", (long) time(NULL));
-  vm_backtrace_each(GET_THREAD(), -1, NULL, method_cache_print_backtrace, (void *) cache_stats.invalidation_log);
 }
 
 void
