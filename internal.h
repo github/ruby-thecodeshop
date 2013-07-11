@@ -1,6 +1,6 @@
 /**********************************************************************
 
-  internal.h -
+  _tinternal.h -
 
   $Author$
   created at: Tue May 17 11:42:20 JST 2011
@@ -23,10 +23,24 @@ struct rb_deprecated_classext_struct {
     char conflict[sizeof(VALUE) * 3];
 };
 
+struct rb_subclass_entry;
+typedef struct rb_subclass_entry rb_subclass_entry_t;
+
+struct rb_subclass_entry {
+  VALUE klass;
+  rb_subclass_entry_t *next;
+};
+
 struct rb_classext_struct {
     VALUE super;
     struct st_table *iv_tbl;
     struct st_table *const_tbl;
+    struct sa_table *mc_tbl;
+    rb_subclass_entry_t *subclasses;
+    rb_subclass_entry_t **parent_subclasses;
+    rb_subclass_entry_t **module_subclasses;
+    VALUE seq;
+    VALUE iclasstarget;
 };
 
 #undef RCLASS_SUPER
@@ -35,6 +49,12 @@ struct rb_classext_struct {
 #define RCLASS_IV_TBL(c) (RCLASS_EXT(c)->iv_tbl)
 #define RCLASS_CONST_TBL(c) (RCLASS_EXT(c)->const_tbl)
 #define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
+#define RCLASS_MC_TBL(c) (RCLASS_EXT(c)->mc_tbl)
+#define RCLASS_SEQ(c) (RCLASS_EXT(c)->seq)
+#define RCLASS_SUBCLASSES(c) (RCLASS_EXT(c)->subclasses)
+#define RCLASS_PARENT_SUBCLASSES(c) (RCLASS_EXT(c)->parent_subclasses)
+#define RCLASS_MODULE_SUBCLASSES(c) (RCLASS_EXT(c)->module_subclasses)
+#define RCLASS_ICLASSTARGET(c) (RCLASS_EXT(c)->iclasstarget)
 #define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
 
 struct vtm; /* defined by timev.h */
@@ -47,6 +67,11 @@ VALUE rb_big_fdiv(VALUE x, VALUE y);
 VALUE rb_big_uminus(VALUE x);
 
 /* class.c */
+void rb_class_foreach_subclass(VALUE klass, void (*f)(VALUE));
+void rb_class_detatch_subclasses(VALUE);
+void rb_class_detatch_module_subclasses(VALUE);
+void rb_class_remove_from_super_subclasses(VALUE);
+void rb_class_remove_from_module_subclasses(VALUE);
 VALUE rb_obj_methods(int argc, VALUE *argv, VALUE obj);
 VALUE rb_obj_protected_methods(int argc, VALUE *argv, VALUE obj);
 VALUE rb_obj_private_methods(int argc, VALUE *argv, VALUE obj);

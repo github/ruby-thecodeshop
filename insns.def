@@ -244,7 +244,7 @@ setconstant
 {
     vm_check_if_namespace(cbase);
     rb_const_set(cbase, id, val);
-    INC_VM_STATE_VERSION();
+    rb_clear_cache_by_class(cbase);
 }
 
 /**
@@ -974,7 +974,7 @@ defineclass
 		  class_iseq->local_size);
     RESTORE_REGS();
 
-    INC_VM_STATE_VERSION();
+    rb_clear_cache_by_class(klass);
     NEXT_INSN();
 }
 
