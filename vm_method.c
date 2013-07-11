@@ -18,7 +18,7 @@ static ID added, singleton_added, attached;
 void
 rb_class_clear_method_cache(VALUE klass)
 {
-  RCLASS_SEQ(klass) = NEXT_SEQ();
+  RCLASS_SEQ(klass) = rb_next_seq();
   rb_class_foreach_subclass(klass, rb_class_clear_method_cache);
 }
 
@@ -27,7 +27,7 @@ rb_clear_cache_by_class(VALUE klass)
 {
   if (klass && klass != Qundef) {
     if (klass == rb_cObject || klass == rb_mKernel) {
-      INC_VM_STATE_VERSION();
+      rb_inc_vm_state_version();
     } else {
       rb_class_clear_method_cache(klass);
     }
@@ -371,7 +371,7 @@ rb_method_entry_get_without_cache(VALUE klass, ID id, method_cache_entry_t *ent)
 
     if (ruby_running) {
 	ent->seq = RCLASS_SEQ(klass);
-	ent->vm_state = GET_VM_STATE_VERSION();
+	ent->vm_state = rb_get_vm_state_version();
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
@@ -405,7 +405,7 @@ rb_method_entry(VALUE klass, ID id)
     }
 
     if (ent->seq == RCLASS_SEQ(klass) &&
-	ent->vm_state == GET_VM_STATE_VERSION() &&
+	ent->vm_state == rb_get_vm_state_version() &&
 	ent->mid == id) {
         me = (rb_method_entry_t *)ent->me;
 	return (rb_method_entry_t *)ent->me;

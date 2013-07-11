@@ -208,15 +208,8 @@ extern VALUE ruby_vm_const_missing_count;
 
 #endif
 
-static uint64_t ruby_vm_global_state_version = 1;
-static uint64_t ruby_vm_sequence = 1;
-
-#define NEXT_SEQ() (++ruby_vm_sequence)
-#define GET_VM_STATE_VERSION() (ruby_vm_global_state_version)
-#define INC_VM_STATE_VERSION() do { \
-    ruby_vm_global_state_version = (ruby_vm_global_state_version + 1); \
-    if (ruby_vm_global_state_version == 0) vm_clear_all_cache(); \
-} while (0)
-static void vm_clear_all_cache(void);
+uint64_t rb_next_seq();
+uint64_t rb_get_vm_state_version();
+void rb_inc_vm_state_version();
 
 #endif /* RUBY_INSNHELPER_H */

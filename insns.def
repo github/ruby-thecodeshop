@@ -1202,7 +1202,7 @@ getinlinecache
 ()
 (VALUE val)
 {
-    if (ic->ic_vmstat == GET_VM_STATE_VERSION()) {
+    if (ic->ic_vmstat == rb_get_vm_state_version()) {
 	val = ic->ic_value.value;
 	JUMP(dst);
     }
@@ -1256,7 +1256,7 @@ setinlinecache
 	rb_iseq_add_mark_object(GET_ISEQ(), val);
     }
     ic->ic_value.value = val;
-    ic->ic_vmstat = GET_VM_STATE_VERSION() - ruby_vm_const_missing_count;
+    ic->ic_vmstat = rb_get_vm_state_version() - ruby_vm_const_missing_count;
     ruby_vm_const_missing_count = 0;
 }
 

@@ -185,7 +185,7 @@ class_alloc(VALUE flags, VALUE klass)
     RCLASS_SUBCLASSES(obj) = NULL;
     RCLASS_PARENT_SUBCLASSES(obj) = NULL;
     RCLASS_MODULE_SUBCLASSES(obj) = NULL;
-    RCLASS_SEQ(obj) = NEXT_SEQ();
+    RCLASS_SEQ(obj) = rb_next_seq();
     RCLASS_ICLASSTARGET(obj) = 0;
     RCLASS_MC_TBL(obj) = NULL;
 

@@ -44,6 +44,9 @@ char ruby_vm_redefined_flag[BOP_LAST_];
 rb_thread_t *ruby_current_thread = 0;
 rb_vm_t *ruby_current_vm = 0;
 
+static uint64_t ruby_vm_global_state_version = 1;
+static uint64_t ruby_vm_sequence = 1;
+
 static void thread_free(void *ptr);
 
 void vm_analysis_operand(int insn, int n, VALUE op);
@@ -58,22 +61,6 @@ void vm_analysis_insn(int insn);
  */
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
-
-static void
-vm_clear_all_inline_method_cache(void)
-{
-    /* TODO: Clear all inline cache entries in all iseqs.
-             How to iterate all iseqs in sweep phase?
-             rb_objspace_each_objects() doesn't work at sweep phase.
-     */
-}
-
-static void
-vm_clear_all_cache()
-{
-    vm_clear_all_inline_method_cache();
-    ruby_vm_global_state_version = 1;
-}
 
 void
 rb_vm_inc_const_missing_count(void)
@@ -2292,3 +2279,22 @@ rb_ruby_debug_ptr(void)
 {
     return ruby_vm_debug_ptr(GET_VM());
 }
+
+uint64_t
+rb_next_seq()
+{
+    return ++ruby_vm_sequence;
+}
+
+uint64_t
+rb_get_vm_state_version()
+{
+    return ruby_vm_global_state_version;
+}
+
+void
+rb_inc_vm_state_version()
+{
+    ruby_vm_global_state_version++;
+}
+
