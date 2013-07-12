@@ -1702,6 +1702,10 @@ rb_const_remove(VALUE mod, ID id)
 
     rb_clear_cache_by_class(mod);
 
+    /* XXX - we need to force a global cache invalidation because constant
+       caching relies on the global state version at the moment. */
+    rb_clear_cache_by_class(rb_cObject);
+
     val = ((rb_const_entry_t*)v)->value;
     if (val == Qundef) {
 	autoload_delete(mod, id);
@@ -1911,6 +1915,10 @@ rb_const_set(VALUE klass, ID id, VALUE val)
     }
 
     rb_clear_cache_by_class(klass);
+
+    /* XXX - we need to force a global cache invalidation because constant
+       caching relies on the global state version at the moment. */
+    rb_clear_cache_by_class(rb_cObject);
 
     ce = ALLOC(rb_const_entry_t);
     ce->flag = (rb_const_flag_t)visibility;
