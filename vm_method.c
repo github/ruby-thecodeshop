@@ -2,9 +2,9 @@
  * This file is included by vm.c
  */
 
-#define CACHE_SIZE 0x800
-#define CACHE_MASK 0x7ff
-#define EXPR1(c,m) ((((c)>>3)^(m))&CACHE_MASK)
+#include "timing.c"
+#include "ruby/intern.h"
+#include "method.h"
 
 static void rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me);
 
@@ -12,52 +12,32 @@ static ID object_id, respond_to_missing;
 static ID removed, singleton_removed, undefined, singleton_undefined;
 static ID added, singleton_added, attached;
 
-struct cache_entry {		/* method hash table. */
-    VALUE filled_version;        /* filled state version */
-    ID mid;			/* method's id */
-    VALUE klass;		/* receiver's class */
-    rb_method_entry_t *me;
-};
-
-static struct cache_entry cache[CACHE_SIZE];
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
-static void
-vm_clear_global_method_cache(void)
+void
+rb_class_clear_method_cache(VALUE klass)
 {
-    struct cache_entry *ent, *end;
+  RCLASS_SEQ(klass) = rb_next_seq();
+  rb_class_foreach_subclass(klass, rb_class_clear_method_cache);
+}
 
-    ent = cache;
-    end = ent + CACHE_SIZE;
-    while (ent < end) {
-	ent->filled_version = 0;
-	ent++;
+void
+rb_clear_method_cache_by_class(VALUE klass)
+{
+  if (klass && klass != Qundef) {
+    if (klass == rb_cObject || klass == rb_mKernel) {
+      rb_inc_method_state_version();
+    } else {
+      rb_class_clear_method_cache(klass);
     }
+  }
 }
 
 void
-rb_clear_cache(void)
+rb_clear_constant_cache()
 {
-    rb_vm_change_state();
-}
-
-static void
-rb_clear_cache_for_undef(VALUE klass, ID id)
-{
-    rb_vm_change_state();
-}
-
-static void
-rb_clear_cache_by_id(ID id)
-{
-    rb_vm_change_state();
-}
-
-void
-rb_clear_cache_by_class(VALUE klass)
-{
-    rb_vm_change_state();
+    rb_inc_constant_state_version();
 }
 
 VALUE
@@ -150,7 +130,7 @@ rb_free_method_entry(rb_method_entry_t *me)
 	else if (def->alias_count > 0) {
 	    def->alias_count--;
 	}
-	me->def = 0;
+	me->def = NULL;
     }
     xfree(me);
 }
@@ -228,7 +208,7 @@ rb_method_entry_make(VALUE klass, ID mid, rb_method_type_t type,
 
     me = ALLOC(rb_method_entry_t);
 
-    rb_clear_cache_by_id(mid);
+    rb_clear_method_cache_by_class(klass);
 
     me->flag = NOEX_WITH_SAFE(noex);
     me->mark = 0;
@@ -321,6 +301,7 @@ rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *opts, rb_method_
     if (type != VM_METHOD_TYPE_UNDEF) {
 	method_added(klass, mid);
     }
+
     return me;
 }
 
@@ -388,24 +369,21 @@ search_method(VALUE klass, ID id)
  * rb_method_entry() simply.
  */
 rb_method_entry_t *
-rb_method_entry_get_without_cache(VALUE klass, ID id)
+rb_method_entry_get_without_cache(VALUE klass, ID id, method_cache_entry_t *ent)
 {
     rb_method_entry_t *me = search_method(klass, id);
 
     if (ruby_running) {
-	struct cache_entry *ent;
-	ent = cache + EXPR1(klass, id);
-	ent->filled_version = GET_VM_STATE_VERSION();
-	ent->klass = klass;
+	ent->seq = RCLASS_SEQ(klass);
+	ent->vm_state = rb_get_method_state_version();
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
 	    ent->me = 0;
 	    me = 0;
-	}
-	else {
+	} else {
 	    ent->mid = id;
-	    ent->me = me;
+	    ent->me = (struct rb_method_entry*)me;
 	}
     }
 
@@ -415,15 +393,29 @@ rb_method_entry_get_without_cache(VALUE klass, ID id)
 rb_method_entry_t *
 rb_method_entry(VALUE klass, ID id)
 {
-    struct cache_entry *ent;
+    rb_method_entry_t *me;
+    method_cache_entry_t *ent;
+    st_data_t body;
 
-    ent = cache + EXPR1(klass, id);
-    if (ent->filled_version == GET_VM_STATE_VERSION() &&
-	ent->mid == id && ent->klass == klass) {
-	return ent->me;
+    if (RCLASS_MC_TBL(klass) == NULL) {
+	RCLASS_MC_TBL(klass) = sa_new_table();
     }
 
-    return rb_method_entry_get_without_cache(klass, id);
+    if (sa_lookup(RCLASS_MC_TBL(klass), id, &body)) {
+	ent = (method_cache_entry_t *)body;
+    } else {
+	ent = calloc(1, sizeof(method_cache_entry_t));
+	sa_insert(RCLASS_MC_TBL(klass), id, (st_data_t) ent);
+    }
+
+    if (ent->seq == RCLASS_SEQ(klass) &&
+	ent->vm_state == rb_get_method_state_version() &&
+	ent->mid == id) {
+        me = (rb_method_entry_t *)ent->me;
+	return (rb_method_entry_t *)ent->me;
+    }
+
+    return rb_method_entry_get_without_cache(klass, id, ent);
 }
 
 static void
@@ -453,10 +445,11 @@ remove_method(VALUE klass, ID mid)
     st_delete(RCLASS_M_TBL(klass), &key, &data);
 
     rb_vm_check_redefinition_opt_method(me);
-    rb_clear_cache_for_undef(klass, mid);
     rb_unlink_method_entry(me);
 
     CALL_METHOD_HOOK(klass, removed, mid);
+
+    rb_clear_method_cache_by_class(klass);
 }
 
 void
@@ -918,6 +911,8 @@ rb_alias(VALUE klass, ID name, ID def)
 
     if (flag == NOEX_UNDEF) flag = orig_me->flag;
     rb_method_entry_set(target_klass, name, orig_me, flag);
+    //fprintf(stderr, "alias from %s %s to target %s %s\n", rb_class2name(klass), rb_id2name(def), rb_class2name(target_klass), rb_id2name(name));
+    rb_clear_method_cache_by_class(target_klass);
 }
 
 /*
@@ -971,7 +966,7 @@ set_method_visibility(VALUE self, int argc, VALUE *argv, rb_method_flag_t ex)
     for (i = 0; i < argc; i++) {
 	rb_export_method(self, rb_to_id(argv[i]), ex);
     }
-    rb_clear_cache_by_class(self);
+    rb_clear_method_cache_by_class(self);
 }
 
 /*
