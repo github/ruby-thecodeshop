@@ -216,20 +216,34 @@ setclassvariable
  */
 DEFINE_INSN
 getcrefconstant
-(ID id)
+(ID id, IC ic)
 ()
 (VALUE val)
 {
-    val = vm_get_ev_const_in_cref(th, GET_ISEQ(), id, 0);
+    if (ic->ic_vmstat == rb_get_constant_state_version()) {
+	/* cache hit */
+    } else {
+	uint64_t new_state_version = rb_get_constant_state_version();
+	ic->ic_value.value = vm_get_ev_const_in_cref(th, GET_ISEQ(), id, 0);
+	ic->ic_vmstat = new_state_version;
+    }
+    val = ic->ic_value.value;
 }
 
 DEFINE_INSN
 getclassconstant
-(ID id)
+(ID id, IC ic)
 (VALUE klass)
 (VALUE val)
 {
-    val = vm_get_ev_const_in_class(th, GET_ISEQ(), klass, id, 0);
+    if (ic->ic_vmstat == rb_get_constant_state_version()) {
+	/* cache hit */
+    } else {
+	uint64_t new_state_version = rb_get_constant_state_version();
+	ic->ic_value.value = vm_get_ev_const_in_class(th, GET_ISEQ(), klass, id, 0);
+	ic->ic_vmstat = new_state_version;
+    }
+    val = ic->ic_value.value;
 }
 
 /**
