@@ -1281,8 +1281,7 @@ setinlinecache
 	rb_iseq_add_mark_object(GET_ISEQ(), val);
     }
     ic->ic_value.value = val;
-    ic->ic_vmstat = rb_get_constant_state_version() - ruby_vm_const_missing_count;
-    ruby_vm_const_missing_count = 0;
+    ic->ic_vmstat = 1;
 }
 
 /**

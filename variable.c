@@ -1620,9 +1620,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse, int visibility)
 	goto retry;
     }
 
-    value = const_missing(klass, id);
-    rb_vm_inc_const_missing_count();
-    return value;
+    return const_missing(klass, id);
 }
 
 VALUE

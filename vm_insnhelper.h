@@ -59,8 +59,6 @@ enum {
 };
 
 extern char ruby_vm_redefined_flag[BOP_LAST_];
-extern VALUE ruby_vm_const_missing_count;
-
 
 /**********************************************************/
 /* deal with stack                                        */

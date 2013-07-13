@@ -37,8 +37,6 @@ VALUE rb_cThread;
 VALUE rb_cEnv;
 VALUE rb_mRubyVMFrozenCore;
 
-VALUE ruby_vm_const_missing_count = 0;
-
 char ruby_vm_redefined_flag[BOP_LAST_];
 
 rb_thread_t *ruby_current_thread = 0;
@@ -62,12 +60,6 @@ void vm_analysis_insn(int insn);
  */
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
-
-void
-rb_vm_inc_const_missing_count(void)
-{
-    ruby_vm_const_missing_count +=1;
-}
 
 /* control stack frame */
 
