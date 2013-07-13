@@ -2076,6 +2076,12 @@ nsdr(void)
     return ary;
 }
 
+static VALUE
+rubyvm_global_state_version()
+{
+    return ULONG2NUM(ruby_vm_global_state_version);
+}
+
 void
 Init_VM(void)
 {
@@ -2087,6 +2093,9 @@ Init_VM(void)
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_undef_alloc_func(rb_cRubyVM);
     rb_undef_method(CLASS_OF(rb_cRubyVM), "new");
+
+    /* method cache metrics */
+    rb_define_singleton_method(rb_cRubyVM, "global_state_version", rubyvm_global_state_version, 0);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
