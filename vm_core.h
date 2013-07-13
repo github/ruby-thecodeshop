@@ -127,6 +127,7 @@ typedef struct rb_compile_option_struct rb_compile_option_t;
 
 struct iseq_inline_cache_entry {
     VALUE ic_vmstat;
+    VALUE ic_seq;
     VALUE ic_class;
     union {
 	VALUE value;
@@ -676,6 +677,7 @@ int rb_vm_get_sourceline(const rb_control_frame_t *);
 VALUE rb_name_err_mesg_new(VALUE obj, VALUE mesg, VALUE recv, VALUE method);
 void rb_vm_stack_to_heap(rb_thread_t *th);
 void ruby_thread_init_stack(rb_thread_t *th);
+static int vm_backtrace_each(rb_thread_t *th, int lev, void (*init)(void *), rb_backtrace_iter_func *iter, void *arg);
 
 NOINLINE(void rb_gc_save_machine_context(rb_thread_t *));
 void rb_gc_mark_machine_stack(rb_thread_t *th);

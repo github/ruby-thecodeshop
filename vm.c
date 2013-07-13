@@ -44,6 +44,10 @@ char ruby_vm_redefined_flag[BOP_LAST_];
 rb_thread_t *ruby_current_thread = 0;
 rb_vm_t *ruby_current_vm = 0;
 
+static uint64_t ruby_method_global_state_version = 1;
+static uint64_t ruby_constant_global_state_version = 1;
+static uint64_t ruby_vm_sequence = 1;
+
 static void thread_free(void *ptr);
 
 void vm_analysis_operand(int insn, int n, VALUE op);
@@ -58,31 +62,6 @@ void vm_analysis_insn(int insn);
  */
 RUBY_FUNC_EXPORTED VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 RUBY_FUNC_EXPORTED int rb_vm_get_sourceline(const rb_control_frame_t *cfp);
-
-void
-rb_vm_change_state(void)
-{
-    INC_VM_STATE_VERSION();
-}
-
-static void vm_clear_global_method_cache(void);
-
-static void
-vm_clear_all_inline_method_cache(void)
-{
-    /* TODO: Clear all inline cache entries in all iseqs.
-             How to iterate all iseqs in sweep phase?
-             rb_objspace_each_objects() doesn't work at sweep phase.
-     */
-}
-
-static void
-vm_clear_all_cache()
-{
-    vm_clear_global_method_cache();
-    vm_clear_all_inline_method_cache();
-    ruby_vm_global_state_version = 1;
-}
 
 void
 rb_vm_inc_const_missing_count(void)
@@ -1974,7 +1953,6 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
     if (!is_singleton && noex == NOEX_MODFUNC) {
 	rb_add_method(rb_singleton_class(klass), id, VM_METHOD_TYPE_ISEQ, miseq, NOEX_PUBLIC);
     }
-    INC_VM_STATE_VERSION();
 }
 
 #define REWIND_CFP(expr) do { \
@@ -2023,7 +2001,6 @@ m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
 {
     REWIND_CFP({
 	rb_undef(cbase, SYM2ID(sym));
-	INC_VM_STATE_VERSION();
     });
     return Qnil;
 }
@@ -2095,6 +2072,12 @@ nsdr(void)
     return ary;
 }
 
+static VALUE
+ruby_vm_constant_state_version()
+{
+    return ULONG2NUM(ruby_constant_global_state_version);
+}
+
 void
 Init_VM(void)
 {
@@ -2106,6 +2089,9 @@ Init_VM(void)
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_undef_alloc_func(rb_cRubyVM);
     rb_undef_method(CLASS_OF(rb_cRubyVM), "new");
+
+    /* method cache metrics */
+    rb_define_singleton_method(rb_cRubyVM, "constant_state_version", ruby_vm_constant_state_version, 0);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
@@ -2298,3 +2284,34 @@ rb_ruby_debug_ptr(void)
 {
     return ruby_vm_debug_ptr(GET_VM());
 }
+
+uint64_t
+rb_next_seq()
+{
+    return ++ruby_vm_sequence;
+}
+
+uint64_t
+rb_get_method_state_version()
+{
+    return ruby_method_global_state_version;
+}
+
+void
+rb_inc_method_state_version()
+{
+    ruby_method_global_state_version++;
+}
+
+uint64_t
+rb_get_constant_state_version()
+{
+    return ruby_constant_global_state_version;
+}
+
+void
+rb_inc_constant_state_version()
+{
+    ruby_constant_global_state_version++;
+}
+
