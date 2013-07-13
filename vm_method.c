@@ -34,12 +34,6 @@ rb_clear_method_cache_by_class(VALUE klass)
   }
 }
 
-void
-rb_clear_constant_cache()
-{
-    rb_inc_constant_state_version();
-}
-
 VALUE
 rb_f_notimplement(int argc, VALUE *argv, VALUE obj)
 {

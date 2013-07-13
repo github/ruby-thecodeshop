@@ -43,7 +43,7 @@ rb_thread_t *ruby_current_thread = 0;
 rb_vm_t *ruby_current_vm = 0;
 
 static uint64_t ruby_method_global_state_version = 1;
-static uint64_t ruby_constant_global_state_version = 1;
+static sa_table ruby_constant_name_versions = SA_EMPTY_TABLE;
 static uint64_t ruby_vm_sequence = 1;
 
 static void thread_free(void *ptr);
@@ -2064,12 +2064,6 @@ nsdr(void)
     return ary;
 }
 
-static VALUE
-ruby_vm_constant_state_version()
-{
-    return ULONG2NUM(ruby_constant_global_state_version);
-}
-
 void
 Init_VM(void)
 {
@@ -2081,9 +2075,6 @@ Init_VM(void)
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_undef_alloc_func(rb_cRubyVM);
     rb_undef_method(CLASS_OF(rb_cRubyVM), "new");
-
-    /* method cache metrics */
-    rb_define_singleton_method(rb_cRubyVM, "constant_state_version", ruby_vm_constant_state_version, 0);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
@@ -2295,15 +2286,22 @@ rb_inc_method_state_version()
     ruby_method_global_state_version++;
 }
 
-uint64_t
-rb_get_constant_state_version()
+uint64_t*
+rb_get_constant_state_version(ID name)
 {
-    return ruby_constant_global_state_version;
+    uint64_t *version;
+    if (sa_lookup(&ruby_constant_name_versions, (sa_index_t)name, (st_data_t*)&version)) {
+	return version;
+    }
+    version = malloc(sizeof *version);
+    *version = 1;
+    sa_insert(&ruby_constant_name_versions, (sa_index_t)name, (st_data_t)version);
+    return version;
 }
 
 void
-rb_inc_constant_state_version()
+rb_clear_constant_cache(ID name)
 {
-    ruby_constant_global_state_version++;
+    ++*rb_get_constant_state_version(name);
 }
 

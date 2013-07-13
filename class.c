@@ -789,6 +789,21 @@ include_class_new(VALUE module, VALUE super)
     return (VALUE)klass;
 }
 
+static int
+invalidate_constant_names_for_mod_i(ID key, VALUE value, VALUE state)
+{
+    rb_clear_constant_cache(key);
+    return ST_CONTINUE;
+}
+
+static void
+invalidate_constant_names_for_module_inclusion(VALUE module)
+{
+    if (RMODULE_CONST_TBL(module)) {
+	st_foreach(RMODULE_CONST_TBL(module), invalidate_constant_names_for_mod_i, 0);
+    }
+}
+
 void
 rb_include_module(VALUE klass, VALUE module)
 {
@@ -838,14 +853,16 @@ rb_include_module(VALUE klass, VALUE module)
 	  rb_module_add_to_subclasses_list(module, iclass);
 	}
 
-	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries)
+	if (RMODULE_M_TBL(module) && RMODULE_M_TBL(module)->num_entries) {
 	    changed = 1;
+	}
+
+	invalidate_constant_names_for_module_inclusion(module);
       skip:
 	module = RCLASS_SUPER(module);
     }
     if (changed) {
 	rb_clear_method_cache_by_class(klass);
-	rb_clear_constant_cache();
     }
 }
 

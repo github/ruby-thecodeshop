@@ -1477,6 +1477,9 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
 				rb_bug("iseq_set_sequence: ic_index overflow: index: %d, size: %d",
 				       ic_index, iseq->ic_size);
 			    }
+			    if (insn == BIN(getclassconstant) || insn == BIN(getcrefconstant)) {
+				ic->ic_ptr = rb_get_constant_state_version(SYM2ID(operands[j - 1]));
+			    }
 			    generated_iseq[pos + 1 + j] = (VALUE)ic;
 			    break;
 			}

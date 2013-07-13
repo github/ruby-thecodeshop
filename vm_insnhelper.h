@@ -211,7 +211,4 @@ uint64_t rb_next_seq();
 uint64_t rb_get_method_state_version();
 void rb_inc_method_state_version();
 
-uint64_t rb_get_constant_state_version();
-void rb_inc_constant_state_version();
-
 #endif /* RUBY_INSNHELPER_H */

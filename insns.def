@@ -220,10 +220,10 @@ getcrefconstant
 ()
 (VALUE val)
 {
-    if (ic->ic_vmstat == rb_get_constant_state_version()) {
+    if (ic->ic_vmstat == *ic->ic_ptr) {
 	/* cache hit */
     } else {
-	uint64_t new_state_version = rb_get_constant_state_version();
+	uint64_t new_state_version = *ic->ic_ptr;
 	ic->ic_value.value = vm_get_ev_const_in_cref(th, GET_ISEQ(), id, 0);
 	ic->ic_vmstat = new_state_version;
     }
@@ -236,10 +236,10 @@ getclassconstant
 (VALUE klass)
 (VALUE val)
 {
-    if (ic->ic_vmstat == rb_get_constant_state_version()) {
+    if (ic->ic_vmstat == *ic->ic_ptr) {
 	/* cache hit */
     } else {
-	uint64_t new_state_version = rb_get_constant_state_version();
+	uint64_t new_state_version = *ic->ic_ptr;
 	ic->ic_value.value = vm_get_ev_const_in_class(th, GET_ISEQ(), klass, id, 0);
 	ic->ic_vmstat = new_state_version;
     }
@@ -1227,7 +1227,7 @@ getinlinecache
 ()
 (VALUE val)
 {
-    if (ic->ic_vmstat == rb_get_constant_state_version()) {
+    if (ic->ic_vmstat) {
 	val = ic->ic_value.value;
 	JUMP(dst);
     }
