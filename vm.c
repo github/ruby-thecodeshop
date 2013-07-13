@@ -1948,12 +1948,9 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
     miseq->klass = klass;
     miseq->defined_method_id = id;
     rb_add_method(klass, id, VM_METHOD_TYPE_ISEQ, miseq, noex);
-    rb_clear_cache_by_class(klass);
 
     if (!is_singleton && noex == NOEX_MODFUNC) {
 	rb_add_method(rb_singleton_class(klass), id, VM_METHOD_TYPE_ISEQ, miseq, NOEX_PUBLIC);
-
-	rb_clear_cache_by_class(rb_singleton_class(klass));
     }
 }
 

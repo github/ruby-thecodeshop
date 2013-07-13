@@ -296,8 +296,6 @@ rb_add_method(VALUE klass, ID mid, rb_method_type_t type, void *opts, rb_method_
 	method_added(klass, mid);
     }
 
-    rb_clear_cache_by_class(klass);
-
     return me;
 }
 
