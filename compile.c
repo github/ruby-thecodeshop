@@ -2570,33 +2570,6 @@ compile_massign(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE *node, int poped)
     return COMPILE_OK;
 }
 
-static int
-compile_colon2(rb_iseq_t *iseq, NODE * node,
-	       LINK_ANCHOR *pref, LINK_ANCHOR *body)
-{
-    switch (nd_type(node)) {
-      case NODE_CONST:
-	debugi("compile_colon2 - colon", node->nd_vid);
-	ADD_INSN1(body, nd_line(node), getconstant, ID2SYM(node->nd_vid));
-	break;
-      case NODE_COLON3:
-	debugi("compile_colon2 - colon3", node->nd_mid);
-	ADD_INSN(body, nd_line(node), pop);
-	ADD_INSN1(body, nd_line(node), putobject, rb_cObject);
-	ADD_INSN1(body, nd_line(node), getconstant, ID2SYM(node->nd_mid));
-	break;
-      case NODE_COLON2:
-	compile_colon2(iseq, node->nd_head, pref, body);
-	debugi("compile_colon2 - colon2", node->nd_mid);
-	ADD_INSN1(body, nd_line(node), getconstant, ID2SYM(node->nd_mid));
-	break;
-      default:
-	COMPILE(pref, "const colon2 prefix", node);
-	break;
-    }
-    return COMPILE_OK;
-}
-
 static VALUE
 compile_cpath(LINK_ANCHOR *ret, rb_iseq_t *iseq, NODE *cpath)
 {
@@ -2689,7 +2662,7 @@ defined_expr(rb_iseq_t *iseq, LINK_ANCHOR *ret,
 
       case NODE_CONST:
 	ADD_INSN(ret, nd_line(node), putnil);
-	ADD_INSN3(ret, nd_line(node), defined, INT2FIX(DEFINED_CONST),
+	ADD_INSN3(ret, nd_line(node), defined, INT2FIX(DEFINED_CREF_CONST),
 		  ID2SYM(node->nd_vid), needstr);
 	return 1;
       case NODE_COLON2:
@@ -2701,7 +2674,7 @@ defined_expr(rb_iseq_t *iseq, LINK_ANCHOR *ret,
 
 	if (rb_is_const_id(node->nd_mid)) {
 	    COMPILE(ret, "defined/colon2#nd_head", node->nd_head);
-	    ADD_INSN3(ret, nd_line(node), defined, INT2FIX(DEFINED_CONST),
+	    ADD_INSN3(ret, nd_line(node), defined, INT2FIX(DEFINED_CLASS_CONST),
 		      ID2SYM(node->nd_mid), needstr);
 	}
 	else {
@@ -2713,7 +2686,7 @@ defined_expr(rb_iseq_t *iseq, LINK_ANCHOR *ret,
       case NODE_COLON3:
 	ADD_INSN1(ret, nd_line(node), putobject, rb_cObject);
 	ADD_INSN3(ret, nd_line(node), defined,
-		  INT2FIX(DEFINED_CONST), ID2SYM(node->nd_mid), needstr);
+		  INT2FIX(DEFINED_CLASS_CONST), ID2SYM(node->nd_mid), needstr);
 	return 1;
 
 	/* method dispatch */
@@ -4423,19 +4396,7 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
       case NODE_CONST:{
 	debugi("nd_vid", node->nd_vid);
 
-	if (iseq->compile_data->option->inline_const_cache) {
-	    LABEL *lend = NEW_LABEL(nd_line(node));
-	    int ic_index = iseq->ic_size++;
-
-	    ADD_INSN2(ret, nd_line(node), getinlinecache, lend, INT2FIX(ic_index));
-	    ADD_INSN1(ret, nd_line(node), getconstant, ID2SYM(node->nd_vid));
-	    ADD_INSN1(ret, nd_line(node), setinlinecache, INT2FIX(ic_index));
-	    ADD_LABEL(ret, lend);
-	}
-	else {
-	    ADD_INSN(ret, nd_line(node), putnil);
-	    ADD_INSN1(ret, nd_line(node), getconstant, ID2SYM(node->nd_vid));
-	}
+	ADD_INSN1(ret, nd_line(node), getcrefconstant, ID2SYM(node->nd_vid));
 
 	if (poped) {
 	    ADD_INSN(ret, nd_line(node), pop);
@@ -4757,34 +4718,8 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
       case NODE_COLON2:{
 	if (rb_is_const_id(node->nd_mid)) {
 	    /* constant */
-	    LABEL *lend = NEW_LABEL(nd_line(node));
-	    int ic_index = iseq->ic_size++;
-
-	    DECL_ANCHOR(pref);
-	    DECL_ANCHOR(body);
-
-	    INIT_ANCHOR(pref);
-	    INIT_ANCHOR(body);
-	    compile_colon2(iseq, node, pref, body);
-	    if (LIST_SIZE_ZERO(pref)) {
-		if (iseq->compile_data->option->inline_const_cache) {
-		    ADD_INSN2(ret, nd_line(node), getinlinecache, lend, INT2FIX(ic_index));
-		}
-		else {
-		    ADD_INSN(ret, nd_line(node), putnil);
-		}
-
-		ADD_SEQ(ret, body);
-
-		if (iseq->compile_data->option->inline_const_cache) {
-		    ADD_INSN1(ret, nd_line(node), setinlinecache, INT2FIX(ic_index));
-		    ADD_LABEL(ret, lend);
-		}
-	    }
-	    else {
-		ADD_SEQ(ret, pref);
-		ADD_SEQ(ret, body);
-	    }
+	    COMPILE(ret, "colon2#nd_head", node->nd_head);
+	    ADD_INSN1(ret, nd_line(node), getclassconstant, ID2SYM(node->nd_mid));
 	}
 	else {
 	    /* function call */
@@ -4804,19 +4739,8 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 
 	  debugi("colon3#nd_mid", node->nd_mid);
 
-	/* add cache insn */
-	if (iseq->compile_data->option->inline_const_cache) {
-	    ADD_INSN2(ret, nd_line(node), getinlinecache, lend, INT2FIX(ic_index));
-	    ADD_INSN(ret, nd_line(node), pop);
-	}
-
 	ADD_INSN1(ret, nd_line(node), putobject, rb_cObject);
-	ADD_INSN1(ret, nd_line(node), getconstant, ID2SYM(node->nd_mid));
-
-	if (iseq->compile_data->option->inline_const_cache) {
-	    ADD_INSN1(ret, nd_line(node), setinlinecache, INT2FIX(ic_index));
-	    ADD_LABEL(ret, lend);
-	}
+	ADD_INSN1(ret, nd_line(node), getclassconstant, ID2SYM(node->nd_mid));
 
 	if (poped) {
 	    ADD_INSN(ret, nd_line(node), pop);

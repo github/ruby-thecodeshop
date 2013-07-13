@@ -1158,79 +1158,80 @@ vm_check_if_namespace(VALUE klass)
 }
 
 static inline VALUE
-vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
+vm_get_ev_const_in_class(rb_thread_t *th, const rb_iseq_t *iseq,
 		VALUE orig_klass, ID id, int is_defined)
+{
+    vm_check_if_namespace(orig_klass);
+    if (is_defined) {
+	return rb_public_const_defined_from(orig_klass, id);
+    }
+    else {
+	return rb_public_const_get_from(orig_klass, id);
+    }
+}
+
+static inline VALUE
+vm_get_ev_const_in_cref(rb_thread_t *th, const rb_iseq_t *iseq, ID id, int is_defined)
 {
     VALUE val;
 
-    if (orig_klass == Qnil) {
-	/* in current lexical scope */
-	const NODE *root_cref = vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
-	const NODE *cref;
-	VALUE klass = orig_klass;
+    /* in current lexical scope */
+    const NODE *root_cref = vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
+    const NODE *cref;
+    VALUE klass;
 
-	while (root_cref && root_cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
-	    root_cref = root_cref->nd_next;
+    while (root_cref && root_cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
+	root_cref = root_cref->nd_next;
+    }
+    cref = root_cref;
+    while (cref && cref->nd_next) {
+	if (cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
+	    klass = Qnil;
 	}
-	cref = root_cref;
-	while (cref && cref->nd_next) {
-	    if (cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
-		klass = Qnil;
-	    }
-	    else {
-		klass = cref->nd_clss;
-	    }
-	    cref = cref->nd_next;
+	else {
+	    klass = cref->nd_clss;
+	}
+	cref = cref->nd_next;
 
-	    if (!NIL_P(klass)) {
-		VALUE am = 0;
-		st_data_t data;
-	      search_continue:
-		if (RCLASS_CONST_TBL(klass) &&
-		    st_lookup(RCLASS_CONST_TBL(klass), id, &data)) {
-		    val = ((rb_const_entry_t*)data)->value;
-		    if (val == Qundef) {
-			if (am == klass) break;
-			am = klass;
-			if (is_defined) return 1;
-			rb_autoload_load(klass, id);
-			goto search_continue;
+	if (!NIL_P(klass)) {
+	    VALUE am = 0;
+	    st_data_t data;
+	  search_continue:
+	    if (RCLASS_CONST_TBL(klass) &&
+		st_lookup(RCLASS_CONST_TBL(klass), id, &data)) {
+		val = ((rb_const_entry_t*)data)->value;
+		if (val == Qundef) {
+		    if (am == klass) break;
+		    am = klass;
+		    if (is_defined) return 1;
+		    rb_autoload_load(klass, id);
+		    goto search_continue;
+		}
+		else {
+		    if (is_defined) {
+			return 1;
 		    }
 		    else {
-			if (is_defined) {
-			    return 1;
-			}
-			else {
-			    return val;
-			}
+			return val;
 		    }
 		}
 	    }
 	}
+    }
 
-	/* search self */
-	if (root_cref && !NIL_P(root_cref->nd_clss)) {
-	    klass = root_cref->nd_clss;
-	}
-	else {
-	    klass = CLASS_OF(th->cfp->self);
-	}
-
-	if (is_defined) {
-	    return rb_const_defined(klass, id);
-	}
-	else {
-	    return rb_const_get(klass, id);
-	}
+    /* search self */
+    if (root_cref && !NIL_P(root_cref->nd_clss)) {
+	klass = root_cref->nd_clss;
     }
     else {
-	vm_check_if_namespace(orig_klass);
-	if (is_defined) {
-	    return rb_public_const_defined_from(orig_klass, id);
-	}
-	else {
-	    return rb_public_const_get_from(orig_klass, id);
-	}
+	klass = CLASS_OF(th->cfp->self);
+    }
+
+    if (is_defined) {
+	return rb_const_defined(klass, id);
+    }
+    else {
+	return rb_const_get(klass, id);
     }
 }
 
