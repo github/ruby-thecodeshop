@@ -1700,11 +1700,7 @@ rb_const_remove(VALUE mod, ID id)
 		      rb_class2name(mod), rb_id2name(id));
     }
 
-    rb_clear_cache_by_class(mod);
-
-    /* XXX - we need to force a global cache invalidation because constant
-       caching relies on the global state version at the moment. */
-    rb_clear_cache_by_class(rb_cObject);
+    rb_clear_constant_cache();
 
     val = ((rb_const_entry_t*)v)->value;
     if (val == Qundef) {
@@ -1914,11 +1910,7 @@ rb_const_set(VALUE klass, ID id, VALUE val)
 	}
     }
 
-    rb_clear_cache_by_class(klass);
-
-    /* XXX - we need to force a global cache invalidation because constant
-       caching relies on the global state version at the moment. */
-    rb_clear_cache_by_class(rb_cObject);
+    rb_clear_constant_cache();
 
     ce = ALLOC(rb_const_entry_t);
     ce->flag = (rb_const_flag_t)visibility;
@@ -1969,14 +1961,12 @@ set_const_visibility(VALUE mod, int argc, VALUE *argv, rb_const_flag_t flag)
 	if (RCLASS_CONST_TBL(mod) &&
 	    st_lookup(RCLASS_CONST_TBL(mod), (st_data_t)id, &v)) {
 	    ((rb_const_entry_t*)v)->flag = flag;
+	    rb_clear_constant_cache();
 	}
 	else {
-	    if ( i > 0 )
-		rb_clear_cache_by_class(mod);
 	    rb_name_error(id, "constant %s::%s not defined", rb_class2name(mod), rb_id2name(id));
 	}
     }
-    rb_clear_cache_by_class(mod);
 }
 
 /*

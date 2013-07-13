@@ -23,15 +23,21 @@ rb_class_clear_method_cache(VALUE klass)
 }
 
 void
-rb_clear_cache_by_class(VALUE klass)
+rb_clear_method_cache_by_class(VALUE klass)
 {
   if (klass && klass != Qundef) {
     if (klass == rb_cObject || klass == rb_mKernel) {
-      rb_inc_vm_state_version();
+      rb_inc_method_state_version();
     } else {
       rb_class_clear_method_cache(klass);
     }
   }
+}
+
+void
+rb_clear_constant_cache()
+{
+    rb_inc_constant_state_version();
 }
 
 VALUE
@@ -202,7 +208,7 @@ rb_method_entry_make(VALUE klass, ID mid, rb_method_type_t type,
 
     me = ALLOC(rb_method_entry_t);
 
-    rb_clear_cache_by_class(klass);
+    rb_clear_method_cache_by_class(klass);
 
     me->flag = NOEX_WITH_SAFE(noex);
     me->mark = 0;
@@ -369,7 +375,7 @@ rb_method_entry_get_without_cache(VALUE klass, ID id, method_cache_entry_t *ent)
 
     if (ruby_running) {
 	ent->seq = RCLASS_SEQ(klass);
-	ent->vm_state = rb_get_vm_state_version();
+	ent->vm_state = rb_get_method_state_version();
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
@@ -403,7 +409,7 @@ rb_method_entry(VALUE klass, ID id)
     }
 
     if (ent->seq == RCLASS_SEQ(klass) &&
-	ent->vm_state == rb_get_vm_state_version() &&
+	ent->vm_state == rb_get_method_state_version() &&
 	ent->mid == id) {
         me = (rb_method_entry_t *)ent->me;
 	return (rb_method_entry_t *)ent->me;
@@ -443,7 +449,7 @@ remove_method(VALUE klass, ID mid)
 
     CALL_METHOD_HOOK(klass, removed, mid);
 
-    rb_clear_cache_by_class(klass);
+    rb_clear_method_cache_by_class(klass);
 }
 
 void
@@ -906,7 +912,7 @@ rb_alias(VALUE klass, ID name, ID def)
     if (flag == NOEX_UNDEF) flag = orig_me->flag;
     rb_method_entry_set(target_klass, name, orig_me, flag);
     //fprintf(stderr, "alias from %s %s to target %s %s\n", rb_class2name(klass), rb_id2name(def), rb_class2name(target_klass), rb_id2name(name));
-    rb_clear_cache_by_class(target_klass);
+    rb_clear_method_cache_by_class(target_klass);
 }
 
 /*
@@ -960,7 +966,7 @@ set_method_visibility(VALUE self, int argc, VALUE *argv, rb_method_flag_t ex)
     for (i = 0; i < argc; i++) {
 	rb_export_method(self, rb_to_id(argv[i]), ex);
     }
-    rb_clear_cache_by_class(self);
+    rb_clear_method_cache_by_class(self);
 }
 
 /*

@@ -44,7 +44,8 @@ char ruby_vm_redefined_flag[BOP_LAST_];
 rb_thread_t *ruby_current_thread = 0;
 rb_vm_t *ruby_current_vm = 0;
 
-static uint64_t ruby_vm_global_state_version = 1;
+static uint64_t ruby_method_global_state_version = 1;
+static uint64_t ruby_constant_global_state_version = 1;
 static uint64_t ruby_vm_sequence = 1;
 
 static void thread_free(void *ptr);
@@ -2000,8 +2001,6 @@ m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
 {
     REWIND_CFP({
 	rb_undef(cbase, SYM2ID(sym));
-        rb_clear_cache_by_class(cbase);
-        rb_clear_cache_by_class(self);
     });
     return Qnil;
 }
@@ -2074,9 +2073,9 @@ nsdr(void)
 }
 
 static VALUE
-rubyvm_global_state_version()
+ruby_vm_constant_state_version()
 {
-    return ULONG2NUM(ruby_vm_global_state_version);
+    return ULONG2NUM(ruby_constant_global_state_version);
 }
 
 void
@@ -2092,7 +2091,7 @@ Init_VM(void)
     rb_undef_method(CLASS_OF(rb_cRubyVM), "new");
 
     /* method cache metrics */
-    rb_define_singleton_method(rb_cRubyVM, "global_state_version", rubyvm_global_state_version, 0);
+    rb_define_singleton_method(rb_cRubyVM, "constant_state_version", ruby_vm_constant_state_version, 0);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
@@ -2293,14 +2292,26 @@ rb_next_seq()
 }
 
 uint64_t
-rb_get_vm_state_version()
+rb_get_method_state_version()
 {
-    return ruby_vm_global_state_version;
+    return ruby_method_global_state_version;
 }
 
 void
-rb_inc_vm_state_version()
+rb_inc_method_state_version()
 {
-    ruby_vm_global_state_version++;
+    ruby_method_global_state_version++;
+}
+
+uint64_t
+rb_get_constant_state_version()
+{
+    return ruby_constant_global_state_version;
+}
+
+void
+rb_inc_constant_state_version()
+{
+    ruby_constant_global_state_version++;
 }
 
