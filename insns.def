@@ -985,6 +985,15 @@ definemethod
     vm_define_method(GET_THREAD(), cbase, mid, iseqval, 0, rb_vm_cref());
 }
 
+DEFINE_INSN
+definesingletonmethod
+(ID mid, VALUE iseqval)
+(VALUE cbase)
+()
+{
+    vm_define_method(GET_THREAD(), cbase, mid, iseqval, 1, rb_vm_cref());
+}
+
 /**********************************************************/
 /* deal with control flow 2: method/iterator              */
 /**********************************************************/
