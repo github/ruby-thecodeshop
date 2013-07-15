@@ -4641,7 +4641,7 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 
 	debugp_param("defn/iseq", iseqval);
 
-	ADD_INSN2(ret, nd_line(node), definemethod, ID2SYM(node->nd_mid), iseqval);
+	ADD_INSN2(ret, nd_line(node), defn, ID2SYM(node->nd_mid), iseqval);
 
 	if (!poped) {
 	    ADD_INSN(ret, nd_line(node), putnil);
@@ -4658,7 +4658,7 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 	debugp_param("defs/iseq", iseqval);
 
 	COMPILE(ret, "defs: recv", node->nd_recv);
-	ADD_INSN2(ret, nd_line(node), definesingletonmethod, ID2SYM(node->nd_mid), iseqval);
+	ADD_INSN2(ret, nd_line(node), defs, ID2SYM(node->nd_mid), iseqval);
 
 	if (!poped) {
 	    ADD_INSN(ret, nd_line(node), putnil);
