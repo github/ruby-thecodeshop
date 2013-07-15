@@ -208,6 +208,10 @@ extern VALUE ruby_vm_const_missing_count;
 
 #endif
 
+static void
+vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
+		 rb_num_t is_singleton, NODE *cref);
+
 uint64_t rb_next_seq();
 
 uint64_t rb_get_method_state_version();

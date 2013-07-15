@@ -975,6 +975,15 @@ defineclass
     NEXT_INSN();
 }
 
+DEFINE_INSN
+definemethod
+(ID mid, VALUE iseqval)
+()
+()
+{
+    VALUE cbase = vm_get_cbase(GET_ISEQ(), GET_LFP(), GET_DFP());
+    vm_define_method(GET_THREAD(), cbase, mid, iseqval, 0, rb_vm_cref());
+}
 
 /**********************************************************/
 /* deal with control flow 2: method/iterator              */
