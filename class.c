@@ -822,6 +822,8 @@ rb_include_module(VALUE klass, VALUE module)
 	Check_Type(module, T_MODULE);
     }
 
+    invalidate_constant_names_for_module_inclusion(module);
+
     OBJ_INFECT(klass, module);
     c = klass;
     while (module) {
@@ -860,7 +862,6 @@ rb_include_module(VALUE klass, VALUE module)
 	    changed = 1;
 	}
 
-	invalidate_constant_names_for_module_inclusion(module);
       skip:
 	module = RCLASS_SUPER(module);
     }
