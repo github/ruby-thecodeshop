@@ -799,8 +799,11 @@ invalidate_constant_names_for_mod_i(ID key, VALUE value, VALUE state)
 static void
 invalidate_constant_names_for_module_inclusion(VALUE module)
 {
-    if (RMODULE_CONST_TBL(module)) {
-	st_foreach(RMODULE_CONST_TBL(module), invalidate_constant_names_for_mod_i, 0);
+    while (module && module != Qundef) {
+	if (RMODULE_CONST_TBL(module)) {
+	    st_foreach(RMODULE_CONST_TBL(module), invalidate_constant_names_for_mod_i, 0);
+	}
+	module = RCLASS_SUPER(module);
     }
 }
 
