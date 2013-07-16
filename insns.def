@@ -236,12 +236,13 @@ getclassconstant
 (VALUE klass)
 (VALUE val)
 {
-    if (ic->ic_vmstat == *ic->ic_ptr) {
+    if (ic->ic_vmstat == *ic->ic_ptr && ic->ic_class == klass) {
 	/* cache hit */
     } else {
 	uint64_t new_state_version = *ic->ic_ptr;
 	ic->ic_value.value = vm_get_ev_const_in_class(th, GET_ISEQ(), klass, id, 0);
 	ic->ic_vmstat = new_state_version;
+	ic->ic_class = klass;
     }
     val = ic->ic_value.value;
 }
