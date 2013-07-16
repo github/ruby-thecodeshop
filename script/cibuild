@@ -1,6 +1,7 @@
 #!/bin/bash -xe
 CORES=64
 
+autoconf
 ./configure --disable-install-doc
 make -j $CORES
 make TESTS="-j $CORES" test-all
