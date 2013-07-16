@@ -1,0 +1,6 @@
+#!/bin/bash -x -e
+CORES=64
+
+./configure --disable-install-doc
+make -j $CORES
+make TESTS="-j $CORES" test-all
