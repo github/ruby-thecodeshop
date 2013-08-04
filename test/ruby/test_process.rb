@@ -1243,14 +1243,6 @@ class TestProcess < Test::Unit::TestCase
     assert_raise(*exs, bug4314) {Process.spawn("a" * 10_000_000)}
   end
 
-  def test_too_long_path2
-    skip
-    bug4315 = '[ruby-core:34833]'
-    exs = [Errno::ENOENT]
-    exs << Errno::E2BIG if defined?(Errno::E2BIG)
-    assert_raise(*exs, bug4315) {Process.spawn('"a"|'*10_000_000)}
-  end
-
   def test_system_sigpipe
     return if windows?
 

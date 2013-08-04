@@ -130,44 +130,6 @@ end
     assert_kind_of Time, new_spec.date
   end
 
-  def test_self_from_yaml_syck_default_key_bug
-    skip 'syck default_key bug is only for ruby 1.8' unless RUBY_VERSION < '1.9'
-    # This is equivalent to (and totally valid) psych 1.0 output and
-    # causes parse errors on syck.
-    yaml = <<-YAML
---- !ruby/object:Gem::Specification
-name: posix-spawn
-version: !ruby/object:Gem::Version
-  version: 0.3.6
-  prerelease:
-dependencies:
-- !ruby/object:Gem::Dependency
-  name: rake-compiler
-  requirement: &70243867725240 !ruby/object:Gem::Requirement
-    none: false
-    requirements:
-    - - =
-      - !ruby/object:Gem::Version
-        version: 0.7.6
-  type: :development
-  prerelease: false
-  version_requirements: *70243867725240
-platform: ruby
-files: []
-test_files: []
-bindir:
-    YAML
-
-    new_spec = with_syck do
-      Gem::Specification.from_yaml yaml
-    end
-
-    op = new_spec.dependencies.first.requirement.requirements.first.first
-    refute_kind_of YAML::Syck::DefaultKey, op
-
-    refute_match %r%DefaultKey%, new_spec.to_ruby
-  end
-
   def test_self_from_yaml_cleans_up_defaultkey
     yaml = <<-YAML
 --- !ruby/object:Gem::Specification
@@ -417,17 +379,6 @@ dependencies: []
     data = Marshal.load Gem.inflate(Gem.read_binary(path))
 
     assert_equal nil, data.rubyforge_project
-  end
-
-  def test_emits_zulu_timestamps_properly
-    skip "bug only on 1.9.2" unless RUBY_VERSION =~ /1\.9\.2/
-
-    t = Time.utc(2012, 3, 12)
-    @a2.date = t
-
-    yaml = with_psych { @a2.to_yaml }
-
-    assert_match %r!date: 2012-03-12 00:00:00\.000000000 Z!, yaml
   end
 
   def test_initialize
