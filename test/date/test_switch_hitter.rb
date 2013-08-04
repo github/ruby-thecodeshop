@@ -569,9 +569,4 @@ class TestSH < Test::Unit::TestCase
     assert_equal(d, d2)
   end
 
-  def test_base
-    skip unless defined?(Date.test_all)
-    assert_equal(true, Date.test_all)
-  end
-
 end
