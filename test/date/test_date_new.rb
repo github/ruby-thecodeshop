@@ -201,52 +201,6 @@ class TestDateNew < Test::Unit::TestCase
     end
   end
 
-  def test_weeknum
-    skip unless Date.respond_to?(:weeknum, true)
-    d = Date.__send__(:weeknum)
-    dt = DateTime.__send__(:weeknum)
-    assert_equal([-4712, 1, 1], [d.year, d.mon, d.mday])
-    assert_equal([-4712, 1, 1], [dt.year, dt.mon, dt.mday])
-    assert_equal([0, 0, 0], [dt.hour, dt.min, dt.sec])
-
-    d = Date.__send__(:weeknum, 2002,11,4, 0)
-    assert_equal(2452355, d.jd)
-
-    d = DateTime.__send__(:weeknum, 2002,11,4, 0, 11,22,33)
-    assert_equal(2452355, d.jd)
-    assert_equal([11,22,33], [d.hour, d.min, d.sec])
-
-    assert_raise(ArgumentError) do
-      Date.__send__(:weeknum, 1999,53,0, 0)
-    end
-    assert_raise(ArgumentError) do
-      Date.__send__(:weeknum, 1999,-53,-1, 0)
-    end
-  end
-
-  def test_nth_kday
-    skip unless Date.respond_to?(:nth_kday, true)
-    d = Date.__send__(:nth_kday)
-    dt = DateTime.__send__(:nth_kday)
-    assert_equal([-4712, 1, 1], [d.year, d.mon, d.mday])
-    assert_equal([-4712, 1, 1], [dt.year, dt.mon, dt.mday])
-    assert_equal([0, 0, 0], [dt.hour, dt.min, dt.sec])
-
-    d = Date.__send__(:nth_kday, 1992,2, 5,6)
-    assert_equal(2448682, d.jd)
-
-    d = DateTime.__send__(:nth_kday, 1992,2, 5,6, 11,22,33)
-    assert_equal(2448682, d.jd)
-    assert_equal([11,22,33], [d.hour, d.min, d.sec])
-
-    assert_raise(ArgumentError) do
-      Date.__send__(:nth_kday, 2006,5, 5,0)
-    end
-    assert_raise(ArgumentError) do
-      Date.__send__(:nth_kday, 2006,5, -5,0)
-    end
-  end
-
   def test_today
     z = Time.now
     d = Date.today
