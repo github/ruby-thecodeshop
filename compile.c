@@ -1816,6 +1816,16 @@ iseq_peephole_optimize(rb_iseq_t *iseq, LINK_ELEMENT *list, const int do_tailcal
 	    piobj->operands[3] = FIXNUM_OR(piobj->operands[3], VM_CALL_TAILCALL_BIT);
 	}
     }
+
+    if (iobj->insn_id == BIN(send)) {
+	if (iobj->operands[3] /* flag */ == INT2FIX(VM_CALL_FCALL_BIT)
+		&& iobj->operands[2] == 0) {
+	    iobj->operands[2] /* ic */ = iobj->operands[4];
+	    iobj->operand_size = 3;
+	    iobj->insn_id = BIN(fcall);
+	}
+    }
+
     return COMPILE_OK;
 }
 
@@ -4071,9 +4081,17 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 	}
 	break;
       }
+      case NODE_VCALL:{
+	ADD_INSN2(ret, nd_line(node), vcall,
+	    ID2SYM(node->nd_mid),
+	    INT2FIX(iseq->ic_size++));
+	if (poped) {
+	    ADD_INSN(ret, nd_line(node), pop);
+	}
+	break;
+      }
       case NODE_CALL:
-      case NODE_FCALL:
-      case NODE_VCALL:{		/* VCALL: variable or call */
+      case NODE_FCALL: {		/* VCALL: variable or call */
 	/*
 	  call:  obj.method(...)
 	  fcall: func(...)
@@ -4089,64 +4107,7 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 
 	INIT_ANCHOR(recv);
 	INIT_ANCHOR(args);
-#if SUPPORT_JOKE
-	if (nd_type(node) == NODE_VCALL) {
-	    if (mid == idBitblt) {
-		ADD_INSN(ret, nd_line(node), bitblt);
-		break;
-	    }
-	    else if (mid == idAnswer) {
-		ADD_INSN(ret, nd_line(node), answer);
-		break;
-	    }
-	}
-	/* only joke */
-	{
-	    ID goto_id;
-	    ID label_id;
 
-	    CONST_ID(goto_id, "__goto__");
-	    CONST_ID(label_id, "__label__");
-
-	    if (nd_type(node) == NODE_FCALL &&
-		(mid == goto_id || mid == label_id)) {
-		LABEL *label;
-		st_data_t data;
-		st_table *labels_table = iseq->compile_data->labels_table;
-		ID label_name;
-
-		if (!labels_table) {
-		    labels_table = st_init_numtable();
-		    iseq->compile_data->labels_table = labels_table;
-		}
-		if (nd_type(node->nd_args->nd_head) == NODE_LIT &&
-		    SYMBOL_P(node->nd_args->nd_head->nd_lit)) {
-
-		    label_name = SYM2ID(node->nd_args->nd_head->nd_lit);
-		    if (!st_lookup(labels_table, (st_data_t)label_name, &data)) {
-			label = NEW_LABEL(nd_line(node));
-			label->position = nd_line(node);
-			st_insert(labels_table, (st_data_t)label_name, (st_data_t)label);
-		    }
-		    else {
-			label = (LABEL *)data;
-		    }
-		}
-		else {
-		    COMPILE_ERROR((ERROR_ARGS "invalid goto/label format"));
-		}
-
-
-		if (mid == goto_id) {
-		    ADD_INSNL(ret, nd_line(node), jump, label);
-		}
-		else {
-		    ADD_LABEL(ret, label);
-		}
-		break;
-	    }
-	}
-#endif
 	/* receiver */
 	if (type == NODE_CALL) {
 	    COMPILE(recv, "recv", node->nd_recv);

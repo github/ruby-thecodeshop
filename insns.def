@@ -1012,6 +1012,31 @@ send
     CALL_METHOD(num, blockptr, flag, id, me, recv);
 }
 
+DEFINE_INSN
+vcall
+(ID id, IC ic)
+()
+(VALUE val)
+{
+    VALUE recv = GET_SELF();
+    VALUE klass = CLASS_OF(recv);
+    const rb_method_entry_t *me = vm_method_search(id, klass, ic);
+    PUSH(recv);
+    CALL_METHOD(0, 0, VM_CALL_FCALL_BIT | VM_CALL_VCALL_BIT, id, me, recv);
+}
+
+DEFINE_INSN
+fcall
+(ID id, rb_num_t argc, IC ic)
+(...)
+(VALUE val) // inc -= argc
+{
+    VALUE recv = TOPN(argc);
+    VALUE klass = CLASS_OF(recv);
+    const rb_method_entry_t *me = vm_method_search(id, klass, ic);
+    CALL_METHOD(argc, 0, VM_CALL_FCALL_BIT, id, me, recv);
+}
+
 /**
   @c method/iterator
   @e super(args) # args.size => num
