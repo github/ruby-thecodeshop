@@ -365,6 +365,8 @@ static NODE *new_evstr_gen(struct parser_params*,NODE*);
 #define new_evstr(n) new_evstr_gen(parser,(n))
 static NODE *evstr2dstr_gen(struct parser_params*,NODE*);
 #define evstr2dstr(n) evstr2dstr_gen(parser,(n))
+static NODE *str_suffix_gen(struct parser_params*, NODE*, long);
+#define str_suffix(n,o) str_suffix_gen(parser,(n),(o))
 static NODE *splat_array(NODE*);
 
 static NODE *call_bin_op_gen(struct parser_params*,NODE*,ID,NODE*);
@@ -473,6 +475,8 @@ static int lvar_defined_gen(struct parser_params*, ID);
 #define RE_OPTION_ENCODING_NONE(o) ((o)&RE_OPTION_ARG_ENCODING_NONE)
 #define RE_OPTION_MASK  0xff
 #define RE_OPTION_ARG_ENCODING_NONE 32
+
+#define STR_OPTION_FROZEN 1
 
 #define NODE_STRTERM NODE_ZARRAY	/* nothing to gc */
 #define NODE_HEREDOC NODE_ARRAY 	/* 1, 3 to gc */
@@ -679,7 +683,7 @@ static void token_info_pop(struct parser_params*, const char *token);
 %token <id>   tIDENTIFIER tFID tGVAR tIVAR tCONSTANT tCVAR tLABEL
 %token <node> tINTEGER tFLOAT tSTRING_CONTENT tCHAR
 %token <node> tNTH_REF tBACK_REF
-%token <num>  tREGEXP_END
+%token <num>  tREGEXP_END tSTRING_SUFFIX
 
 %type <node> singleton strings string string1 xstring regexp
 %type <node> string_contents xstring_contents regexp_contents string_content
@@ -703,6 +707,7 @@ static void token_info_pop(struct parser_params*, const char *token);
 %type <node> mlhs mlhs_head mlhs_basic mlhs_item mlhs_node mlhs_post mlhs_inner
 %type <id>   fsym keyword_variable user_variable sym symbol operation operation2 operation3
 %type <id>   cname fname op f_rest_arg f_block_arg opt_f_block_arg f_norm_arg f_bad_arg
+%type <num>  opt_string_sfx
 /*%%%*/
 /*%
 %type <val> program reswords then do dot_or_colon
@@ -3839,7 +3844,7 @@ literal		: numeric
 		| dsym
 		;
 
-strings		: string
+strings		: string opt_string_sfx
 		    {
 		    /*%%%*/
 			NODE *node = $1;
@@ -3849,6 +3854,7 @@ strings		: string
 			else {
 			    node = evstr2dstr(node);
 			}
+			node = str_suffix(node, $2);
 			$$ = node;
 		    /*%
 			$$ = $1;
@@ -3876,6 +3882,10 @@ string1		: tSTRING_BEG string_contents tSTRING_END
 			$$ = dispatch1(string_literal, $2);
 		    %*/
 		    }
+		;
+
+opt_string_sfx	: tSTRING_SUFFIX
+		| /* none */ { $$ = 0; }
 		;
 
 xstring		: tXSTRING_BEG xstring_contents tSTRING_END
@@ -4886,6 +4896,7 @@ none		: /* none */
 # define yylval  (*((YYSTYPE*)(parser->parser_yylval)))
 
 static int parser_regx_options(struct parser_params*);
+static int parser_str_options(struct parser_params*);
 static int parser_tokadd_string(struct parser_params*,int,int,int,long*,rb_encoding**);
 static void parser_tokaddmbc(struct parser_params *parser, int c, rb_encoding *enc);
 static int parser_parse_string(struct parser_params*,NODE*);
@@ -4901,6 +4912,7 @@ static int parser_here_document(struct parser_params*,NODE*);
 # define read_escape(flags,e)      parser_read_escape(parser, (flags), (e))
 # define tokadd_escape(e)          parser_tokadd_escape(parser, (e))
 # define regx_options()            parser_regx_options(parser)
+# define str_options()             parser_str_options(parser)
 # define tokadd_string(f,t,p,n,e)  parser_tokadd_string(parser,(f),(t),(p),(n),(e))
 # define parse_string(n)           parser_parse_string(parser,(n))
 # define tokaddmbc(c, enc)         parser_tokaddmbc(parser, (c), (enc))
@@ -5385,10 +5397,11 @@ rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int st
 #define STR_FUNC_QWORDS 0x08
 #define STR_FUNC_SYMBOL 0x10
 #define STR_FUNC_INDENT 0x20
+#define STR_FUNC_OPTION 0x40
 
 enum string_type {
-    str_squote = (0),
-    str_dquote = (STR_FUNC_EXPAND),
+    str_squote = (STR_FUNC_OPTION),
+    str_dquote = (STR_FUNC_EXPAND|STR_FUNC_OPTION),
     str_xquote = (STR_FUNC_EXPAND),
     str_regexp = (STR_FUNC_REGEXP|STR_FUNC_ESCAPE|STR_FUNC_EXPAND),
     str_sword  = (STR_FUNC_QWORDS),
@@ -5827,6 +5840,28 @@ parser_regx_options(struct parser_params *parser)
     return options | RE_OPTION_ENCODING(kcode);
 }
 
+static int
+parser_str_options(struct parser_params *parser)
+{
+    int c, options = 0;
+    const char *save_p = lex_p;
+
+    while (c = nextc(), ISALPHA(c)) {
+	switch (c) {
+#if STR_OPTION_FROZEN
+	  case 'f':
+	    options |= STR_OPTION_FROZEN;
+	    break;
+#endif
+	  default:
+	    lex_p = save_p;
+	    return 0;
+        }
+    }
+    pushback(c);
+    return options;
+}
+
 static void
 dispose_string(VALUE str)
 {
@@ -5995,6 +6030,10 @@ parser_parse_string(struct parser_params *parser, NODE *quote)
     rb_encoding *enc = parser->enc;
 
     if (func == -1) return tSTRING_END;
+    if (func == 0) {
+	set_yylval_num(term);
+	return tSTRING_SUFFIX;
+    }
     c = nextc();
     if ((func & STR_FUNC_QWORDS) && ISSPACE(c)) {
 	do {c = nextc();} while (ISSPACE(c));
@@ -6003,11 +6042,18 @@ parser_parse_string(struct parser_params *parser, NODE *quote)
     if (c == term && !quote->nd_nest) {
 	if (func & STR_FUNC_QWORDS) {
 	    quote->nd_func = -1;
+	    quote->u2.id = 0;
 	    return ' ';
 	}
-	if (!(func & STR_FUNC_REGEXP)) return tSTRING_END;
-        set_yylval_num(regx_options());
-	return tREGEXP_END;
+	if (func & STR_FUNC_REGEXP) {
+	    set_yylval_num(regx_options());
+	    return tREGEXP_END;
+	}
+	if ((func & STR_FUNC_OPTION) && (func = str_options()) != 0) {
+	    quote->nd_func = 0;
+	    quote->u2.id = func;
+	}
+	return tSTRING_END;
     }
     if (space) {
 	pushback(c);
@@ -6655,7 +6701,8 @@ parser_yylex(struct parser_params *parser)
 	}
 	else {
 	    token = parse_string(lex_strterm);
-	    if (token == tSTRING_END || token == tREGEXP_END) {
+	    if ((token == tSTRING_END && lex_strterm->nd_func) ||
+		    token == tSTRING_SUFFIX || token == tREGEXP_END) {
 		rb_gc_force_recycle((VALUE)lex_strterm);
 		lex_strterm = 0;
 		lex_state = EXPR_END;
@@ -8183,6 +8230,27 @@ evstr2dstr_gen(struct parser_params *parser, NODE *node)
 {
     if (nd_type(node) == NODE_EVSTR) {
 	node = list_append(NEW_DSTR(Qnil), node);
+    }
+    return node;
+}
+
+static NODE *
+str_suffix_gen(struct parser_params *parser, NODE *node, long opt)
+{
+    if (nd_type(node) == NODE_STR) {
+#if STR_OPTION_FROZEN
+	if (opt & STR_OPTION_FROZEN) {
+	    OBJ_FREEZE(node->nd_lit);
+	    nd_set_type(node, NODE_LIT);
+	}
+#endif
+    }
+    else {
+#if STR_OPTION_FROZEN
+	if (opt & STR_OPTION_FROZEN) {
+	    node = NEW_CALL(node, rb_intern("freeze"), 0);
+	}
+#endif
     }
     return node;
 }

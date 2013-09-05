@@ -1996,4 +1996,55 @@ class TestString < Test::Unit::TestCase
 
     assert_equal(u("\x82")+("\u3042"*9), ("\u3042"*10).byteslice(2, 28))
   end
+
+  def test_unknown_string_option
+    str = nil
+    assert_nothing_raised(SyntaxError) do
+      eval(%{
+        str = begin"hello"end
+      })
+    end
+    assert_equal "hello", str
+    refute str.frozen?
+  end
+
+  def test_frozen_string
+    assert_equal "hello", "hello"f
+
+    assert "hello"f.frozen?
+
+    f = -> { "hello"f }
+
+    assert_equal f.call.object_id, f.call.object_id
+  end
+
+  def test_frozen_dstring
+    assert_equal "hello123", "hello#{123}"f
+
+    assert "hello#{123}"f.frozen?
+
+    i = 0
+    f = -> { "#{i += 1}"f }
+    assert_equal "1", f.call
+    assert_equal "2", f.call
+  end
+
+  def test_frozen_string_adjacent
+    str = nil
+    assert_nothing_raised(SyntaxError) do
+      eval(%{
+        str = "hello" "world"f
+      })
+    end
+    assert_equal "helloworld", str
+    assert str.frozen?
+  end
+
+  def test_frozen_string_cannot_be_adjacent
+    assert_raise(SyntaxError) do
+      eval(%{
+        "hello"f "world"
+      })
+    end
+  end
 end
